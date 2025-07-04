@@ -1,11 +1,16 @@
 <script lang="ts">
-	// Import store baru kita
-	import { userStore, profileStore } from '$lib/firebase/auth'; // Tambahkan profileStore
+	import { toast } from 'svelte-sonner'; // <-- IMPORT
+	import { userStore, profileStore } from '$lib/firebase/auth';
 	import { auth } from '$lib/firebase/client';
 	import { signOut } from 'firebase/auth';
 
 	async function handleLogout() {
-		await signOut(auth);
+		try {
+			await signOut(auth);
+			toast.success('Anda telah berhasil logout.'); // <-- TAMBAHKAN NOTIFIKASI
+		} catch (error: any) {
+			toast.error('Gagal logout', { description: error.message });
+		}
 	}
 </script>
 

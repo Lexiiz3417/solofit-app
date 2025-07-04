@@ -1,39 +1,29 @@
 <script lang="ts">
-	// 1. Import
+	import { toast } from 'svelte-sonner'; // <-- IMPORT
 	import { auth } from '$lib/firebase/client';
-	// Perhatikan, fungsinya sekarang signInWithEmailAndPassword
 	import { signInWithEmailAndPassword } from 'firebase/auth';
 
-	// 2. Variabel
 	let email = '';
 	let password = '';
 	let isLoading = false;
-	let errorMessage = '';
 
-	// 3. Fungsi Handler
 	async function handleLogin() {
 		if (!email || !password) {
-			errorMessage = 'Email dan password tidak boleh kosong.';
+			toast.warning('Email dan password tidak boleh kosong.'); // <-- GANTI ALERT
 			return;
 		}
 
 		isLoading = true;
-		errorMessage = '';
 
 		try {
-			// 4. Panggil fungsi Firebase untuk login
 			await signInWithEmailAndPassword(auth, email, password);
-			alert('Login berhasil!');
-
-			// Arahkan ke halaman utama setelah berhasil
+			toast.success('Login Berhasil!'); // <-- GANTI ALERT
 			window.location.href = '/';
-
 		} catch (error: any) {
-			// 5. Tangani error
 			console.error('Error login:', error);
-			errorMessage = error.message;
-			alert(`Error: ${error.message}`);
-
+			toast.error('Login Gagal', { // <-- GANTI ALERT
+				description: error.message
+			});
 		} finally {
 			isLoading = false;
 		}
@@ -65,10 +55,6 @@
 					bind:value={password}
 				/>
 			</div>
-
-			{#if errorMessage}
-				<p class="text-sm text-red-600">{errorMessage}</p>
-			{/if}
 
 			<div>
 				<button
