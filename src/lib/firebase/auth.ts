@@ -1,9 +1,10 @@
 // src/lib/firebase/auth.ts
 
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, db } from './client'; // db bisa di-import langsung di sini
+import { auth, db } from './client';
 import { readable } from 'svelte/store';
-import { doc, onSnapshot, type DocumentData } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import type { UserProfile } from '$lib/types'; // <-- 1. TAMBAHKAN IMPORT INI
 
 /**
  * Sebuah store yang secara reaktif menyediakan status otentikasi pengguna.
@@ -22,19 +23,17 @@ export const userStore = readable<User | null | undefined>(undefined, (set) => {
 
 /**
  * Sebuah store yang menyediakan data profil pengguna dari Firestore secara real-time.
- * Isinya bisa berupa:
- * - `null`: Jika user logout atau data profil tidak ditemukan.
- * - `DocumentData`: Objek berisi data profil (level, exp, dll) jika user login dan datanya ada.
+ * Isinya sekarang menggunakan tipe UserProfile yang spesifik.
  */
-export const profileStore = readable<DocumentData | null>(null, (set) => {
+// 2. GANTI DocumentData MENJADI UserProfile
+export const profileStore = readable<UserProfile | null>(null, (set) => {
 	const unsubscribe = userStore.subscribe((user) => {
 		if (user) {
 			// Jika user login, kita 'dengarkan' perubahan pada dokumen profilnya
 			const userDocRef = doc(db, 'users', user.uid);
 			const unsubDoc = onSnapshot(userDocRef, (doc) => {
-				// Setiap kali data di firestore berubah, update store kita
-				// Tanda '??' artinya: jika doc.data() hasilnya undefined, gunakan null.
-				set(doc.data() ?? null); // <-- PERBAIKAN ADA DI SINI
+				// Kita beri tahu TypeScript bahwa data ini adalah UserProfile
+				set((doc.data() as UserProfile) ?? null);
 			});
 			return () => unsubDoc();
 		} else {

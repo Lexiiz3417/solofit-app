@@ -20,10 +20,19 @@
 			toast.success('Login Berhasil!'); // <-- GANTI ALERT
 			window.location.href = '/';
 		} catch (error: any) {
-			console.error('Error login:', error);
-			toast.error('Login Gagal', { // <-- GANTI ALERT
-				description: error.message
-			});
+    console.error('Error login:', error.code); // Kita log kodenya untuk debug
+    let friendlyMessage = 'Terjadi kesalahan tidak diketahui. Coba lagi nanti.';
+
+    // Terjemahkan kode error Firebase menjadi pesan yang bisa dimengerti
+    if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        friendlyMessage = 'Email atau password yang kamu masukkan salah, Hunter.';
+    } else if (error.code === 'auth/too-many-requests') {
+        friendlyMessage = 'Terlalu banyak percobaan gagal. Coba lagi beberapa saat.';
+    }
+
+    toast.error('Login Gagal', {
+        description: friendlyMessage
+    });
 		} finally {
 			isLoading = false;
 		}

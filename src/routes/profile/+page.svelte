@@ -1,30 +1,21 @@
 <script lang="ts">
-	// TIDAK ADA PERUBAHAN DI SINI. SEMUA SAMA SEPERTI SEBELUMNYA.
+	// Script ini sudah benar, tidak ada perubahan
 	import { userStore, profileStore } from '$lib/firebase/auth';
 	import { db } from '$lib/firebase/client';
 	import { doc, updateDoc, increment, runTransaction } from 'firebase/firestore';
 	import { toast } from 'svelte-sonner';
 	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import { cn } from '$lib/utils.js';
-
-	// Import komponen Card yang baru kita tambahkan
-	import {
-		Card,
-		CardContent,
-		CardHeader,
-		CardTitle,
-		CardDescription
-	} from '$lib/components/ui/card/index.js';
-	// Import tombol Shadcn
+	import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '$lib/components/ui/card/index.js';
 	import Button from '$lib/components/ui/button/button.svelte';
-	// Import ikon-ikon
+	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { Sword, Shield, Heart, Star, Award, Activity } from 'lucide-svelte';
 
 	type StatName = 'strength' | 'agility' | 'stamina';
 
 	async function allocateStatPoint(statName: StatName) {
 		if (!$userStore) {
-			toast.error('Anda harus login.');
+			toast.error('Kamu harus login.');
 			return;
 		}
 		try {
@@ -60,10 +51,10 @@
 		<Card>
 			<CardHeader>
 				<CardTitle class="text-2xl">Status Karakter</CardTitle>
-				<CardDescription>Lihat progres dan alokasikan poin status Anda.</CardDescription>
+				<CardDescription>Lihat progres dan alokasikan poin statusmu.</CardDescription>
 			</CardHeader>
 			<CardContent class="space-y-6">
-				<div class="space-y-3 p-4 border rounded-lg">
+				<div class="space-y-4 p-4 border rounded-lg">
 					<div class="flex items-center justify-between text-md">
 						<div class="flex items-center gap-2 text-gray-700">
 							<Award class="size-5 text-yellow-500" />
@@ -76,11 +67,16 @@
 							<Heart class="size-5 text-red-500" />
 							<span>HP</span>
 						</div>
-						<span class="font-mono font-bold text-red-600">
-							{$profileStore.hp} / {$profileStore.maxHp}
-						</span>
+						<span class="font-mono font-bold text-red-600">{$profileStore.hp} / {$profileStore.maxHp}</span>
 					</div>
-					<div class="flex items-center justify-between text-md">
+					<div class="space-y-1">
+						<div class="flex justify-between items-baseline text-sm">
+							<span class="font-medium">Main EXP</span>
+							<span class="font-mono">{$profileStore.exp} / {$profileStore.requiredExp}</span>
+						</div>
+						<Progress value={$profileStore.exp} max={$profileStore.requiredExp} />
+					</div>
+					<div class="flex items-center justify-between text-md pt-2 border-t">
 						<div class="flex items-center gap-2 text-gray-700">
 							<Star class="size-5 text-blue-500" />
 							<span>Poin Tersedia</span>
@@ -89,57 +85,53 @@
 					</div>
 				</div>
 
-				<div class="space-y-3 pt-4">
+				<div class="space-y-3 pt-4 border-t">
 					<h3 class="text-lg font-semibold">Alokasi Atribut</h3>
 					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<Sword class="size-5 text-gray-600" />
-							<span>Strength</span>
-						</div>
+						<div class="flex items-center gap-2"><Sword class="size-5 text-gray-600" /><span>Strength</span></div>
 						<div class="flex items-center gap-4">
 							<span class="font-mono text-lg w-8 text-right">{$profileStore.stats.strength}</span>
-							<Button
-								onclick={() => allocateStatPoint('strength')}
-								disabled={$profileStore.statPoints <= 0}
-								size="sm"
-								variant="outline"
-							>+</Button
-							>
+							<Button onclick={() => allocateStatPoint('strength')} disabled={$profileStore.statPoints <= 0} size="sm" variant="outline">+</Button>
 						</div>
 					</div>
-
 					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<Activity class="size-5 text-gray-600" />
-							<span>Agility</span>
-						</div>
+						<div class="flex items-center gap-2"><Activity class="size-5 text-gray-600" /><span>Agility</span></div>
 						<div class="flex items-center gap-4">
 							<span class="font-mono text-lg w-8 text-right">{$profileStore.stats.agility}</span>
-							<Button
-								onclick={() => allocateStatPoint('agility')}
-								disabled={$profileStore.statPoints <= 0}
-								size="sm"
-								variant="outline"
-							>+</Button
-							>
+							<Button onclick={() => allocateStatPoint('agility')} disabled={$profileStore.statPoints <= 0} size="sm" variant="outline">+</Button>
 						</div>
 					</div>
-
 					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<Shield class="size-5 text-gray-600" />
-							<span>Stamina</span>
-						</div>
+						<div class="flex items-center gap-2"><Shield class="size-5 text-gray-600" /><span>Stamina</span></div>
 						<div class="flex items-center gap-4">
 							<span class="font-mono text-lg w-8 text-right">{$profileStore.stats.stamina}</span>
-							<Button
-								onclick={() => allocateStatPoint('stamina')}
-								disabled={$profileStore.statPoints <= 0}
-								size="sm"
-								variant="outline"
-							>+</Button
-							>
+							<Button onclick={() => allocateStatPoint('stamina')} disabled={$profileStore.statPoints <= 0} size="sm" variant="outline">+</Button>
 						</div>
+					</div>
+				</div>
+
+				<div class="space-y-4 pt-4 border-t">
+					<h3 class="text-lg font-semibold">Progres Mastery</h3>
+					<div class="space-y-1">
+						<div class="flex justify-between items-baseline text-sm">
+							<span class="font-medium">Strength Mastery (Lv. {$profileStore.mastery.strength.level})</span>
+							<span class="font-mono">{$profileStore.mastery.strength.exp} / {$profileStore.mastery.strength.requiredExp}</span>
+						</div>
+						<Progress value={$profileStore.mastery.strength.exp} max={$profileStore.mastery.strength.requiredExp} />
+					</div>
+					<div class="space-y-1">
+						<div class="flex justify-between items-baseline text-sm">
+							<span class="font-medium">Stamina Mastery (Lv. {$profileStore.mastery.stamina.level})</span>
+							<span class="font-mono">{$profileStore.mastery.stamina.exp} / {$profileStore.mastery.stamina.requiredExp}</span>
+						</div>
+						<Progress value={$profileStore.mastery.stamina.exp} max={$profileStore.mastery.stamina.requiredExp} />
+					</div>
+					<div class="space-y-1">
+						<div class="flex justify-between items-baseline text-sm">
+							<span class="font-medium">Agility Mastery (Lv. {$profileStore.mastery.agility.level})</span>
+							<span class="font-mono">{$profileStore.mastery.agility.exp} / {$profileStore.mastery.agility.requiredExp}</span>
+						</div>
+						<Progress value={$profileStore.mastery.agility.exp} max={$profileStore.mastery.agility.requiredExp} />
 					</div>
 				</div>
 			</CardContent>
