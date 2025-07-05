@@ -3,6 +3,7 @@
 	import { auth, db } from '$lib/firebase/client';
 	import { createUserWithEmailAndPassword } from 'firebase/auth';
 	import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+	import { goto } from '$app/navigation'; // <-- 1. TAMBAHKAN IMPORT INI
 
 	let email = '';
 	let password = '';
@@ -17,21 +18,17 @@
 		try {
 			const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 			
-			// --- BAGIAN BARU: Pengecekan Keamanan ---
 			const user = userCredential.user;
 			if (!user || !user.email) {
-				// Ini seharusnya tidak akan pernah terjadi di alur kita, tapi ini membuat TypeScript "tenang".
 				toast.error('Gagal mendapatkan data pengguna setelah registrasi.');
 				throw new Error('User data or email is null after creation');
 			}
-			// --- AKHIR BAGIAN BARU ---
 
 			const userDocRef = doc(db, 'users', user.uid);
 
-			// Membuat data awal untuk pengguna baru
 			await setDoc(userDocRef, {
-				email: user.email, // Sekarang aman, karena sudah dicek
-				username: user.email.split('@')[0], // Ini juga jadi aman
+				email: user.email,
+				username: user.email.split('@')[0],
 				isSetupComplete: false,
 				level: 1,
 				exp: 0,
@@ -50,7 +47,10 @@
 			toast.success('Registrasi Berhasil!', {
 				description: 'Karakter Anda telah dibuat. Mengarahkan ke halaman setup...'
 			});
-			window.location.href = '/'; // Gatekeeper di layout akan menangkap ini dan redirect ke /welcome/setup
+            
+            // 2. GANTI BARIS INI
+			goto('/', { replaceState: true }); 
+
 		} catch (error: any) {
 			console.error('Error registrasi:', error);
 			toast.error('Registrasi Gagal', {
