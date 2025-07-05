@@ -1,11 +1,32 @@
 <script lang="ts">
+	// 1. Import hal-hal baru yang kita butuhkan
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+
+	// Import-import lama
 	import { Toaster } from 'svelte-sonner';
-	import { userStore } from '$lib/firebase/auth'; // Import userStore untuk cek status login
-	import Button from '$lib/components/ui/button/button.svelte'; // Import Shadcn Button yang baru kita tambahkan
+	import { userStore, profileStore } from '$lib/firebase/auth'; // pastikan profileStore di-import
+	import Button from '$lib/components/ui/button/button.svelte';
 	import '../app.css';
 
-	// Ini adalah sintaksis Svelte 5, biarkan saja
+	// Props Svelte 5, biarkan saja
 	let { children } = $props();
+
+	// 2. Gunakan $effect untuk menjalankan kode saat store berubah
+	$effect(() => {
+		// Kita hanya peduli jika user sudah login DAN data profilnya sudah termuat
+		if ($userStore && $profileStore) {
+			const isSetupComplete = $profileStore.isSetupComplete;
+			const isOnSetupPage = $page.route.id === '/welcome/setup';
+
+			// 3. Logika Gatekeeper
+			// Jika setup belum selesai DAN pengguna TIDAK sedang di halaman setup
+			if (isSetupComplete === false && !isOnSetupPage) {
+				// Paksa pengguna pindah ke halaman setup
+				goto('/welcome/setup', { replaceState: true });
+			}
+		}
+	});
 </script>
 
 <Toaster richColors />

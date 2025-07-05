@@ -1,10 +1,14 @@
 <script lang="ts">
+	// 1. Import semua yang kita butuhkan, perhatikan ada yang baru
 	import { userStore, profileStore } from '$lib/firebase/auth';
 	import { db } from '$lib/firebase/client';
 	import { doc, updateDoc, increment, runTransaction } from 'firebase/firestore';
 	import { toast } from 'svelte-sonner';
-	import Button from '$lib/components/ui/button/button.svelte';
+	// IMPORT BARU untuk "mencuri" gaya tombol
+	import { buttonVariants } from '$lib/components/ui/button/index.js';
+	import { cn } from '$lib/utils.js';
 
+	// Sisa dari script ini SAMA PERSIS seperti sebelumnya, tidak ada yang berubah
 	let monster = {
 		name: 'Goblin',
 		hp: 50,
@@ -13,19 +17,15 @@
 		defense: 5,
 		expReward: 25
 	};
-
 	let battleLog: string[] = [];
 	let isBattleStarted = false;
 	let isBattleOver = false;
 	let battleResult = ''; // 'win' or 'lose'
-
 	async function handleAttack() {
 		if (isBattleOver || !$userStore || !$profileStore) return;
-
 		const playerDamage = Math.max(1, $profileStore.stats.strength * 2 - monster.defense);
 		monster.hp = Math.max(0, monster.hp - playerDamage);
 		battleLog = [...battleLog, `Anda menyerang ${monster.name} dan memberikan ${playerDamage} damage!`];
-
 		if (monster.hp <= 0) {
 			isBattleOver = true;
 			battleResult = 'win';
@@ -33,12 +33,10 @@
 			await grantRewards(monster.expReward);
 			return;
 		}
-
 		const monsterDamage = Math.max(1, Math.floor(monster.attack - $profileStore.stats.stamina / 2));
 		const userDocRef = doc(db, 'users', $userStore.uid);
 		await updateDoc(userDocRef, { hp: increment(-monsterDamage) });
 		battleLog = [...battleLog, `${monster.name} menyerang Anda dan memberikan ${monsterDamage} damage!`];
-
 		setTimeout(() => {
 			if ($profileStore && $profileStore.hp <= 0) {
 				isBattleOver = true;
@@ -47,7 +45,6 @@
 			}
 		}, 200);
 	}
-
 	async function grantRewards(expReward: number) {
 		if (!$userStore) return;
 		try {
@@ -58,7 +55,6 @@
 			console.error('Gagal memberi hadiah:', error);
 		}
 	}
-
 	function startBattle() {
 		if ($profileStore && $profileStore.hp <= 0) {
 			toast.error('HP Anda habis! Silakan pulihkan HP terlebih dahulu.');
@@ -70,7 +66,6 @@
 		isBattleOver = false;
 		battleResult = '';
 	}
-
 	async function fullyHeal() {
 		if (!$userStore || !$profileStore) return;
 		const userDocRef = doc(db, 'users', $userStore.uid);
@@ -90,7 +85,7 @@
 
 	{#if !isBattleStarted}
 		<div class="text-center mt-16">
-			<Button on:click={startBattle} size="lg">Masuk Dungeon</Button>
+			<button on:click={startBattle} class={cn(buttonVariants({ size: 'lg' }))}>Masuk Dungeon</button>
 		</div>
 	{:else if $profileStore}
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -114,7 +109,10 @@
 
 				{#if !isBattleOver}
 					<div class="mt-4 text-center">
-						<Button on:click={handleAttack} variant="destructive" size="lg">SERANG!</Button>
+						<button
+							on:click={handleAttack}
+							class={cn(buttonVariants({ variant: 'destructive', size: 'lg' }))}>SERANG!</button
+						>
 					</div>
 				{:else}
 					<div
@@ -123,9 +121,13 @@
 					>
 						<h3 class="text-2xl font-bold">{battleResult === 'win' ? 'KEMENANGAN!' : 'KEKALAHAN!'}</h3>
 						{#if battleResult === 'win'}
-							<Button on:click={startBattle} class="mt-2">Lawan Lagi</Button>
+							<button on:click={startBattle} class={cn(buttonVariants({ class: 'mt-2' }))}
+								>Lawan Lagi</button
+							>
 						{:else}
-							<Button on:click={fullyHeal} class="mt-2">Pulihkan HP & Coba Lagi</Button>
+							<button on:click={fullyHeal} class={cn(buttonVariants({ class: 'mt-2' }))}
+								>Pulihkan HP & Coba Lagi</button
+							>
 						{/if}
 					</div>
 				{/if}

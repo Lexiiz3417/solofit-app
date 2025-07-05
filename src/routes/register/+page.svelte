@@ -13,17 +13,26 @@
 			toast.warning('Email dan password tidak boleh kosong.');
 			return;
 		}
-
 		isLoading = true;
-
 		try {
 			const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+			
+			// --- BAGIAN BARU: Pengecekan Keamanan ---
 			const user = userCredential.user;
+			if (!user || !user.email) {
+				// Ini seharusnya tidak akan pernah terjadi di alur kita, tapi ini membuat TypeScript "tenang".
+				toast.error('Gagal mendapatkan data pengguna setelah registrasi.');
+				throw new Error('User data or email is null after creation');
+			}
+			// --- AKHIR BAGIAN BARU ---
+
 			const userDocRef = doc(db, 'users', user.uid);
 
 			// Membuat data awal untuk pengguna baru
 			await setDoc(userDocRef, {
-				email: user.email,
+				email: user.email, // Sekarang aman, karena sudah dicek
+				username: user.email.split('@')[0], // Ini juga jadi aman
+				isSetupComplete: false,
 				level: 1,
 				exp: 0,
 				requiredExp: 100,
@@ -33,15 +42,15 @@
 					agility: 10,
 					stamina: 10
 				},
-				hp: 100, // Stamina (10) * 10
-				maxHp: 100, // Stamina (10) * 10
+				hp: 100,
+				maxHp: 100,
 				createdAt: serverTimestamp()
 			});
 
 			toast.success('Registrasi Berhasil!', {
-				description: 'Karakter Anda telah dibuat.'
+				description: 'Karakter Anda telah dibuat. Mengarahkan ke halaman setup...'
 			});
-			window.location.href = '/';
+			window.location.href = '/'; // Gatekeeper di layout akan menangkap ini dan redirect ke /welcome/setup
 		} catch (error: any) {
 			console.error('Error registrasi:', error);
 			toast.error('Registrasi Gagal', {
