@@ -41,7 +41,12 @@
 				},
 				hp: 100,
 				maxHp: 100,
-				createdAt: serverTimestamp()
+				createdAt: serverTimestamp(),
+		mastery: {
+				strength: { level: 0, exp: 0, requiredExp: 100 },
+				stamina: { level: 0, exp: 0, requiredExp: 150 },
+				agility: { level: 0, exp: 0, requiredExp: 120 }
+				}
 			});
 
 			toast.success('Registrasi Berhasil!', {

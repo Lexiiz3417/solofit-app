@@ -6,33 +6,46 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
 	import { Progress } from '$lib/components/ui/progress/index.js';
-	import { Swords, User, Heart, Bot, ScrollText } from 'lucide-svelte';
+	import { Swords, User, Heart, Bot, ScrollText, ShieldAlert } from 'lucide-svelte';
+	import {
+		Dialog,
+		DialogContent,
+		DialogDescription,
+		DialogFooter,
+		DialogHeader,
+		DialogTitle
+	} from '$lib/components/ui/dialog/index.js';
 
-	// --- FUNGSI WARNA HP ADAPTIF (SEKARANG MENGHASILKAN CLASS TAILWIND) ---
 	function getHpColorClass(current: number, max: number): string {
-		if (max === 0) return '[&>div]:bg-red-600'; // Mencegah pembagian dengan nol
+		if (max === 0) return '[&>div]:bg-red-600';
 		const percentage = (current / max) * 100;
-		if (percentage > 70) return '[&>div]:bg-green-500'; // HP Penuh
-		if (percentage > 40) return '[&>div]:bg-yellow-400'; // HP Setengah
-		if (percentage > 15) return '[&>div]:bg-orange-500'; // HP Kritis
-		return '[&>div]:bg-red-600'; // HP Sekarat
+		if (percentage > 70) return '[&>div]:bg-green-500';
+		if (percentage > 40) return '[&>div]:bg-yellow-400';
+		if (percentage > 15) return '[&>div]:bg-orange-500';
+		return '[&>div]:bg-red-600';
 	}
 
-	// Semua logika di bawah ini sama persis
-	let monster = {
+	let monster = $state({
 		name: 'Goblin',
 		hp: 50,
 		maxHp: 50,
 		attack: 15,
 		defense: 5,
 		expReward: 25
-	};
-	let battleLog: string[] = [];
-	let isBattleStarted = false;
-	let isBattleOver = false;
-	let battleResult = '';
-	async function handleAttack() {
+	});
+	let battleLog = $state<string[]>([]);
+	let isBattleStarted = $state(false);
+	let isBattleOver = $state(false);
+	let battleResult = $state('');
+	let isConfirmationDialogOpen = $state(false);
+	let hasAttackedOnce = $state(false);
+
+	// PERBAIKAN 2: Tambahkan satu baris di sini untuk menutup dialog
+	async function executeAttack() {
+		isConfirmationDialogOpen = false; // <-- MENUTUP DIALOG
 		if (isBattleOver || !$userStore || !$profileStore) return;
+		hasAttackedOnce = true;
+
 		const playerDamage = Math.max(1, $profileStore.stats.strength * 2 - monster.defense);
 		monster.hp = Math.max(0, monster.hp - playerDamage);
 		battleLog = [...battleLog, `Kamu menyerang ${monster.name} dan memberikan ${playerDamage} damage!`];
@@ -55,6 +68,14 @@
 			}
 		}, 200);
 	}
+
+	function handleAttackClick() {
+		if (hasAttackedOnce) {
+			executeAttack();
+		} else {
+			isConfirmationDialogOpen = true;
+		}
+	}
 	async function grantRewards(expReward: number) {
 		if (!$userStore) return;
 		try {
@@ -75,6 +96,7 @@
 		isBattleStarted = true;
 		isBattleOver = false;
 		battleResult = '';
+		hasAttackedOnce = false;
 	}
 	async function fullyHeal() {
 		if (!$userStore || !$profileStore) return;
@@ -139,6 +161,10 @@
 					<CardTitle>{monster.name}</CardTitle>
 				</CardHeader>
 				<CardContent class="space-y-4">
+					<div class="text-xs flex justify-around border-b border-slate-700 pb-2">
+						<p>Attack: {monster.attack}</p>
+						<p>Defense: {monster.defense}</p>
+					</div>
 					<div class="space-y-1">
 						<div class="flex justify-between items-center">
 							<div class="flex items-center gap-1.5 text-sm font-medium">
@@ -155,10 +181,14 @@
 					</div>
 					{#if !isBattleOver}
 						<div class="pt-4 text-center">
-							<Button onclick={handleAttack} variant="destructive" size="lg">SERANG!</Button>
+							<Button onclick={handleAttackClick} variant="destructive" size="lg">SERANG!</Button>
 						</div>
 					{:else}
-						<div class="mt-4 text-center p-4 rounded-lg {battleResult === 'win' ? 'bg-green-500' : 'bg-red-500'}">
+						<div
+							class="mt-4 text-center p-4 rounded-lg {battleResult === 'win'
+								? 'bg-green-500'
+								: 'bg-red-500'}"
+						>
 							<h3 class="text-2xl font-bold">{battleResult === 'win' ? 'KEMENANGAN!' : 'KEKALAHAN!'}</h3>
 							{#if battleResult === 'win'}
 								<Button onclick={startBattle} class="mt-2">Lawan Lagi</Button>
@@ -183,4 +213,24 @@
 			</Card>
 		</div>
 	{/if}
+
+	<Dialog bind:open={isConfirmationDialogOpen}>
+		<DialogContent>
+			<DialogHeader>
+				<DialogTitle class="flex items-center justify-center gap-2">
+					<ShieldAlert class="size-5 text-yellow-500" />
+					[ PERINGATAN SISTEM ]
+				</DialogTitle>
+				<DialogDescription class="pt-4 text-md text-slate-600">
+					Sekali pertarungan dimulai, tidak ada jalan untuk lari. Kamu harus bertarung sampai salah
+					satu pihak tumbang.
+					<p class="font-bold mt-4">Lanjutkan pertarungan?</p>
+				</DialogDescription>
+			</DialogHeader>
+			<DialogFooter class="gap-2 sm:justify-end">
+				<Button onclick={() => (isConfirmationDialogOpen = false)} variant="secondary">Mundur</Button>
+				<Button onclick={executeAttack}>Lanjutkan Pertarungan</Button>
+			</DialogFooter>
+		</DialogContent>
+	</Dialog>
 </main>
