@@ -5,8 +5,8 @@
 	import '../app.css';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Home, Swords, User, ShieldCheck } from 'lucide-svelte';
+	import SystemNotification from '$lib/components/custom/SystemNotification.svelte';
 
-	// Import baru untuk Gatekeeper
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
