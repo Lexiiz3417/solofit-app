@@ -50,4 +50,5 @@ export interface TransactionResult {
 	masteryLeveledUp: boolean;
 	newMasteryLevel: number;
 	statGained: string | null;
+    statPointsGained: number; 
 }

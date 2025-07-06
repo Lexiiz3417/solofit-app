@@ -5,13 +5,16 @@
 	import { toast } from 'svelte-sonner';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card/index.js';
 	import Button from '$lib/components/ui/button/button.svelte';
-	import { Award, Dumbbell, Star, Bot, Wind, Shield, HeartPulse, Footprints } from 'lucide-svelte';
-	import type { Quest, UserProfile, TransactionResult } from '$lib/types'; // Tambahkan TransactionResult
+	import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '$lib/components/ui/dialog/index.js';
+	import { Award, Dumbbell, Star, Bot, Wind, Shield, HeartPulse, Footprints, PartyPopper } from 'lucide-svelte';
+	import type { Quest, UserProfile, TransactionResult } from '$lib/types';
 	import { get } from 'svelte/store';
 
 	let activeQuests = $state<Quest[]>([]);
 	let isLoadingQuests = $state(true);
 	let hasFetched = $state(false);
+	let isLevelUpDialogOpen = $state(false);
+	let levelUpInfo = $state({ newLevel: 0, pointsGained: 0 });
 
 	const iconMap = { Dumbbell, Bot, Wind, Shield, HeartPulse, Footprints, Award };
 
@@ -37,7 +40,7 @@
 			if (querySnapshot.empty) {
 				activeQuests = [];
 			} else {
-				const questPool = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Quest));
+				let questPool = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Quest));
 				questPool.sort(() => 0.5 - Math.random());
 				const selectedQuests = questPool.slice(0, 3);
 				const difficultyMultipliers = {
@@ -69,23 +72,22 @@
 	}
 
 	try {
-		// Secara eksplisit beritahu tipe apa yang akan dikembalikan oleh transaksi ini
 		const result = await runTransaction<TransactionResult>(db, async (transaction) => {
 			const userDocRef = doc(db, 'users', currentUser.uid);
 			const userDoc = await transaction.get(userDocRef);
-
 			if (!userDoc.exists()) throw new Error('Profil user tidak ditemukan.');
 
 			const userData = userDoc.data() as UserProfile;
 			let updates: { [key: string]: any } = {};
-			
-			// Buat objek laporan dengan tipe yang jelas
+
+			// Buat objek laporan dengan tipe yang jelas dan lengkap
 			const transactionResult: TransactionResult = {
 				mainLeveledUp: false,
 				newMainLevel: 0,
 				masteryLeveledUp: false,
 				newMasteryLevel: 0,
-				statGained: null
+				statGained: null,
+				statPointsGained: 0 // <-- TAMBAHKAN INISIALISASI DI SINI
 			};
 
 			// Logika EXP Utama
@@ -94,6 +96,7 @@
 			if (newMainExp >= userData.requiredExp) {
 				transactionResult.mainLeveledUp = true;
 				transactionResult.newMainLevel = userData.level + 1;
+				transactionResult.statPointsGained = 5; // Nilai ini akan diisi saat level up
 				updates['level'] = increment(1);
 				updates['exp'] = newMainExp - userData.requiredExp;
 				updates['requiredExp'] = Math.floor(userData.requiredExp * 1.5);
@@ -115,7 +118,7 @@
 			}
 
 			transaction.update(userDocRef, updates);
-			return transactionResult; // Kembalikan laporan hasil yang sudah jelas tipenya
+			return transactionResult;
 		});
 
 		// Logika Notifikasi
@@ -124,10 +127,11 @@
 		});
 
 		if (result.mainLeveledUp) {
-			toast.info(`NAIK LEVEL KE ${result.newMainLevel}!`);
+			levelUpInfo = { newLevel: result.newMainLevel, pointsGained: result.statPointsGained };
+			isLevelUpDialogOpen = true;
 		}
 
-		// Sekarang TypeScript 100% yakin 'result.statGained' adalah string di sini
+		// Typo sudah diperbaiki di sini juga
 		if (result.masteryLeveledUp && result.statGained) {
 			toast.success(`${result.statGained.toUpperCase()} MASTERY NAIK KE LV. ${result.newMasteryLevel}!`, {
 				description: `Stat ${result.statGained} permanen +1!`
@@ -158,7 +162,8 @@
 			<Card class="text-center p-6">
 				<CardTitle>Tidak Ada Misi</CardTitle>
 				<CardDescription class="mt-2">
-					Cek kembali besok atau pastikan 'goal' di profilmu sudah sesuai dengan kategori quest yang ada.
+					Cek kembali besok atau pastikan 'goal' di profilmu sudah sesuai dengan kategori quest yang
+					ada.
 				</CardDescription>
 			</Card>
 		{:else}
@@ -192,4 +197,24 @@
 			{/each}
 		{/if}
 	</div>
+
+	<Dialog bind:open={isLevelUpDialogOpen}>
+		<DialogContent>
+			<DialogHeader class="items-center justify-center text-center">
+				<PartyPopper class="size-16 text-yellow-500" />
+				<DialogTitle class="text-2xl">[ LEVEL UP ]</DialogTitle>
+				<DialogDescription class="text-md">
+					Kerja kerasmu terbayar, Hunter! Kamu telah mencapai:
+					<p class="text-4xl font-bold text-blue-600 my-4">LEVEL {levelUpInfo.newLevel}</p>
+					Kamu mendapatkan hadiah:
+					<p class="font-semibold text-lg text-slate-800 mt-2">
+						{levelUpInfo.pointsGained} Stat Points
+					</p>
+				</DialogDescription>
+			</DialogHeader>
+			<DialogFooter>
+				<Button onclick={() => (isLevelUpDialogOpen = false)} class="w-full">Lanjutkan!</Button>
+			</DialogFooter>
+		</DialogContent>
+	</Dialog>
 </main>
