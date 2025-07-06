@@ -28,20 +28,18 @@
 			<!-- Bagian Ikon, ditampilkan jika ada -->
 			{#if $notificationStore.icon}
 				<div class="flex justify-center">
+					<!-- PERBAIKAN: Logika class jadi jauh lebih simpel -->
+					<!-- svelte-ignore svelte_component_deprecated -->
 					<svelte:component
 						this={$notificationStore.icon}
-						class="size-16"
-						class:text-yellow-500={$notificationStore.title.includes('LEVEL UP')}
-						class:text-blue-500={$notificationStore.title.includes('MASTERY')}
-						class:text-green-500={$notificationStore.title.includes('SELESAI')}
+						class={`size-16 ${$notificationStore.iconColorClass ?? ''}`}
 					/>
 				</div>
 			{/if}
 
 			<!-- Bagian Judul -->
 			<DialogTitle class="flex items-center justify-center gap-2 text-2xl">
-				{#if !$notificationStore.icon && !$notificationStore.title.includes('LEVEL UP') && !$notificationStore.title.includes('MASTERY')}
-					<!-- Ikon default hanya untuk peringatan umum -->
+				{#if !$notificationStore.icon}
 					<ShieldAlert class="size-6 text-yellow-500" />
 				{/if}
 				<span>{$notificationStore.title}</span>

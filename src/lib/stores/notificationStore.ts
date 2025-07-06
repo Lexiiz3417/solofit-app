@@ -6,6 +6,7 @@ export interface NotificationPayload {
 	title: string;
 	description: string;
 	icon?: ComponentType;
+	iconColorClass?: string; // <-- TAMBAHAN BARU
 	rewards?: string[];
 }
 
@@ -33,6 +34,7 @@ function createNotificationStore() {
 				title: data.title,
 				description: data.description,
 				icon: data.icon,
+				iconColorClass: data.iconColorClass, // <-- TAMBAHAN BARU
 				rewards: data.rewards
 			});
 		},

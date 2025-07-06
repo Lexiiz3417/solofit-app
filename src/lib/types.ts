@@ -11,9 +11,9 @@ export interface Quest {
 	baseTarget: number;
 	unit: string;
 	categories: string[];
-	iconName: string; // Kita pakai nama ikonnya saja
-	icon?: ComponentType; // Icon svelte-nya opsional
-	finalTarget?: number; // Target final setelah dihitung
+	iconName: string;
+	icon?: ComponentType;
+	finalTarget?: number;
 }
 
 // Tipe untuk data profil user dari Firestore
@@ -44,21 +44,25 @@ export interface UserProfile {
 	fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
 	commitmentDays: number;
 }
+
+// Tipe untuk hasil transaksi
 export interface TransactionResult {
 	mainLeveledUp: boolean;
 	newMainLevel: number;
 	masteryLeveledUp: boolean;
 	newMasteryLevel: number;
 	statGained: string | null;
-    statPointsGained: number; 
+	statPointsGained: number;
 }
+
+// --- TIPE DATA BARU UNTUK MONSTER ---
 export interface Monster {
 	id: string;
 	name: string;
-	hp: number;
 	maxHp: number;
 	attack: number;
 	defense: number;
 	expReward: number;
-	imageUrl?: string; // Tanda tanya (?) berarti opsional
+	imageUrl?: string;
+	hp?: number; // HP saat ini, ditambahkan saat pertarungan
 }

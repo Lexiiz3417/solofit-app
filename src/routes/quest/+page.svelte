@@ -21,32 +21,34 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '$lib/components/ui/dialog/index.js';
-	import { Award, Dumbbell, Star, Bot, Wind, Shield, HeartPulse, Footprints, PartyPopper, Zap, ShieldAlert } from 'lucide-svelte';
+	import { Award, Dumbbell, Star, Bot, Wind, Shield, HeartPulse, Footprints, PartyPopper, Zap, ShieldAlert, Gem, Weight, Flame, BookOpen, BrainCircuit, Lightbulb } from 'lucide-svelte';
 	import type { Quest, UserProfile, TransactionResult } from '$lib/types';
 	import { get } from 'svelte/store';
 	import { onMount } from 'svelte';
 	import { notificationStore } from '$lib/stores/notificationStore';
 
+	// Tipe data untuk quest harian yang aktif
 	interface ActiveQuest extends Quest {
 		progress: number;
 		target: number;
 		isComplete: boolean;
 	}
 
+	// State reaktif untuk halaman ini
 	let dailyQuests = $state<ActiveQuest[]>([]);
 	let questProgressInputs = $state<{ [key: string]: number | undefined }>({});
 	let isLoadingQuests = $state(true);
 	let hasFetched = $state(false);
 	
-	// State untuk dialog
+	// State untuk semua dialog
 	let isLevelUpDialogOpen = $state(false);
 	let levelUpInfo = $state({ newLevel: 0, pointsGained: 0 });
 	let isMasteryUpDialogOpen = $state(false);
 	let masteryUpInfo = $state({ stat: '', newLevel: 0 });
-	// PERBAIKAN: State untuk menyimpan hasil transaksi terakhir
 	let lastTransactionResult = $state<TransactionResult | null>(null);
 
-	const iconMap = { Dumbbell, Bot, Wind, Shield, HeartPulse, Footprints, Award };
+	// Peta untuk mencocokkan nama ikon dari DB ke komponen ikon Svelte
+	const iconMap = { Dumbbell, Bot, Wind, Shield, HeartPulse, Footprints, Award, Gem, Weight, Flame, Zap, BookOpen, BrainCircuit, Lightbulb };
 
 	onMount(() => {
 		const unsubscribe = profileStore.subscribe((profile) => {
@@ -58,7 +60,7 @@
 		return () => unsubscribe();
 	});
 
-	// Fungsi fetch dan generate tidak berubah
+	// Fungsi untuk mengambil atau membuat quest harian
 	async function fetchOrCreateDailyQuests() {
 		const currentUser = get(userStore);
 		const profile = get(profileStore);
@@ -81,6 +83,8 @@
 		}
 		isLoadingQuests = false;
 	}
+
+	// Fungsi untuk generate quest baru dari "Bank Quest"
 	async function generateNewQuests(dailyQuestsColRef: any, profile: UserProfile) {
 		const questBankQuery = query(collection(db, 'quests'), where('categories', 'array-contains', profile.goal));
 		const bankSnapshot = await getDocs(questBankQuery);
@@ -106,19 +110,18 @@
 		await fetchOrCreateDailyQuests();
 	}
 
-	// Fungsi handleAddProgress tidak berubah
+	// Fungsi untuk "mencicil" progres
 	async function handleAddProgress(quest: ActiveQuest, amount: number | undefined) {
 		const currentUser = get(userStore);
 		if (!currentUser || !amount || amount <= 0) {
 			toast.warning('Masukkan jumlah progres yang valid.');
 			return;
 		}
-
-		if (quest.isComplete) {
-			toast.info(`Quest '${quest.name}' sudah selesai hari ini, tapi kamu tetap dapat Mastery EXP untuk 'grinding' tambahan!`);
-		}
-
 		const questDocRef = doc(db, 'users', currentUser.uid, 'dailyQuests', quest.id);
+		
+		if (quest.isComplete) {
+			toast.info(`Quest '${quest.name}' sudah selesai, tapi kamu tetap dapat Mastery EXP untuk 'grinding' tambahan!`);
+		}
 		
 		await updateDoc(questDocRef, { progress: increment(amount) });
 		
@@ -135,6 +138,7 @@
 		fetchOrCreateDailyQuests();
 	}
 	
+	// Fungsi untuk memberikan SEMUA jenis hadiah
 	async function grantRewards(quest: ActiveQuest, amount: number, isFirstCompletion: boolean) {
 		const currentUser = get(userStore);
 		if (!currentUser) return;
@@ -181,23 +185,26 @@
 				return transactionResult;
 			});
 
-			// Simpan hasil transaksi untuk dipakai di dialog berantai
 			lastTransactionResult = result;
 
-			// --- LOGIKA NOTIFIKASI BARU YANG BERURUTAN ---
-			notificationStore.show({ 
-				title: `[ QUEST SELESAI ]`, 
-				description: `'${quest.name}' berhasil ditaklukkan!`, 
-				rewards: [`+${mainExpGained} EXP Utama`, `+${masteryExpGained} M.EXP`],
-				icon: ShieldAlert
-			});
+			if (isFirstCompletion) {
+				notificationStore.show({ 
+					title: `[ QUEST SELESAI ]`, 
+					description: `'${quest.name}' berhasil ditaklukkan!`, 
+					rewards: [`+${mainExpGained} EXP Utama`, `+${masteryExpGained} M.EXP`],
+					icon: ShieldAlert,
+					iconColorClass: 'text-green-500'
+				});
+			} else {
+				toast.success(`Progres ditambahkan!`, { 
+					description: `Kamu mendapatkan +${masteryExpGained} ${quest.masteryType} EXP.` 
+				});
+			}
 
-			// Tampilkan notifikasi Level Up DULUAN jika ada
 			if (result.mainLeveledUp) {
 				levelUpInfo = { newLevel: result.newMainLevel, pointsGained: result.statPointsGained };
 				isLevelUpDialogOpen = true;
 			} else if (result.masteryLeveledUp) {
-				// Jika tidak ada level up utama, baru tampilkan mastery up
 				masteryUpInfo = { stat: result.statGained || '', newLevel: result.newMasteryLevel };
 				isMasteryUpDialogOpen = true;
 			}
@@ -206,10 +213,9 @@
 		}
 	}
 
-	// Fungsi baru untuk menangani penutupan dialog Level Up
+	// Fungsi untuk menangani notifikasi berantai
 	function handleLevelUpDialogClose() {
 		isLevelUpDialogOpen = false;
-		// Setelah ditutup, cek apakah ada notifikasi Mastery yang menunggu
 		if (lastTransactionResult?.masteryLeveledUp && lastTransactionResult?.statGained) {
 			masteryUpInfo = { stat: lastTransactionResult.statGained, newLevel: lastTransactionResult.newMasteryLevel };
 			isMasteryUpDialogOpen = true;
@@ -218,7 +224,6 @@
 </script>
 
 <main class="p-4 md:p-8 max-w-2xl mx-auto">
-	<!-- ... (Bagian atas dan daftar quest tidak berubah) ... -->
 	<div class="flex items-center gap-4 mb-8">
 		<Award class="size-9 text-yellow-500" />
 		<div>
@@ -301,7 +306,6 @@
 				</DialogDescription>
 			</DialogHeader>
 			<DialogFooter>
-				<!-- Tombol ini sekarang memanggil fungsi baru -->
 				<Button onclick={handleLevelUpDialogClose} class="w-full">Lanjutkan!</Button>
 			</DialogFooter>
 		</DialogContent>

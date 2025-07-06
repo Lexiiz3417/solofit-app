@@ -15,10 +15,10 @@
 	// State untuk menahan tampilan halaman
 	let isReady = $state(false);
 
-	// --- LOGIKA GATEKEEPER BARU YANG BENAR (TANPA get()) ---
+	// --- LOGIKA GATEKEEPER BARU YANG TANGGUH ---
 	$effect(() => {
-		// Cukup gunakan $userStore dan $profileStore secara langsung.
-		// Svelte 5 secara otomatis akan menjalankan ulang effect ini saat nilainya berubah.
+		// Di Svelte 5, kita cukup pakai $userStore dan $profileStore di sini.
+		// Effect ini akan otomatis jalan lagi setiap kali nilainya berubah.
 
 		// Kondisi 1: Saat aplikasi baru dibuka, kita belum tahu status user. Tahan tampilan.
 		if ($userStore === undefined) {
@@ -33,7 +33,6 @@
 		}
 
 		// Kondisi 3: Saat kita tahu user login, tapi data profilnya dari Firestore masih dalam perjalanan. Tahan tampilan.
-		// Nilai awal profileStore adalah null, jadi kita tunggu sampai ada isinya.
 		if ($userStore && $profileStore === null) {
 			isReady = false;
 			return;
@@ -42,21 +41,23 @@
 		// Kondisi 4: Saat user dan profil sudah siap. Ini saatnya membuat keputusan.
 		if ($userStore && $profileStore) {
 			const isSetupComplete = $profileStore.isSetupComplete;
-			const isOnSetupPage = $page.route.id?.includes('/welcome/setup');
+			const isOnSetupPage = $page.url.pathname.includes('/welcome/setup');
 
+			// Jika setup belum selesai & dia tidak di halaman setup -> PAKSA ke setup.
 			if (isSetupComplete === false && !isOnSetupPage) {
 				goto('/welcome/setup', { replaceState: true });
 			} else {
-				isReady = true; // Tampilkan halaman!
+				// Jika setup sudah selesai atau dia memang di halaman setup -> TAMPILKAN HALAMAN.
+				isReady = true;
 			}
 		}
 	});
 </script>
 
-<!-- Bagian HTML di bawah ini tidak perlu diubah sama sekali -->
-
+<!-- Toaster untuk notifikasi kecil -->
 <Toaster richColors position="top-center" />
 
+<!-- Navbar Atas (HANYA UNTUK DESKTOP) -->
 <header
 	class="hidden md:flex p-4 bg-white dark:bg-slate-950 border-b dark:border-slate-800 shadow-sm sticky top-0 z-10"
 >
@@ -75,6 +76,7 @@
 	</nav>
 </header>
 
+<!-- Konten Utama Halaman -->
 <main class="pb-20 md:pb-0">
 	{#if isReady}
 		{@render children()}
@@ -85,6 +87,7 @@
 	{/if}
 </main>
 
+<!-- Navbar Bawah (HANYA UNTUK MOBILE & JIKA SUDAH LOGIN) -->
 {#if $userStore}
 	<footer
 		class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t dark:bg-slate-950 dark:border-slate-800 p-2 z-10"
@@ -130,4 +133,5 @@
 	</footer>
 {/if}
 
+<!-- Komponen Notifikasi Global kita -->
 <SystemNotification />
