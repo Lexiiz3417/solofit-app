@@ -39,8 +39,8 @@
 	}
 </script>
 
-<main class="flex items-center justify-center min-h-screen bg-slate-100">
-	<Card class="w-full max-w-sm">
+<main class="flex items-center justify-center min-h-screen bg-slate-100 dark:bg-slate-950">
+		<Card class="w-full max-w-sm">
 		<CardHeader class="text-center">
 			<CardTitle class="text-2xl">Selamat Datang Kembali!</CardTitle>
 			<CardDescription>Login untuk melanjutkan petualanganmu.</CardDescription>
@@ -62,7 +62,7 @@
 				</div>
 			</form>
 			<p class="mt-4 text-center text-sm">
-				Belum punya akun? <a href="/register" class="underline text-blue-600">Daftar di sini</a>
+				Belum punya akun? <a href="/register" class="text-blue-600">Daftar di sini</a>
 			</p>
 		</CardContent>
 	</Card>

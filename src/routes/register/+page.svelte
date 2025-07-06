@@ -42,9 +42,9 @@
 					stamina: { level: 0, exp: 0, requiredExp: 150 },
 					agility: { level: 0, exp: 0, requiredExp: 120 }
 				},
-				goal: 'build_muscle',
-				fitnessLevel: 'beginner',
-				commitmentDays: 3,
+				goal: 'build_muscle', // Ini akan di-update di halaman setup
+				fitnessLevel: 'beginner', // Ini juga
+				commitmentDays: 3, // Ini juga
 				createdAt: serverTimestamp()
 			});
 			toast.success('Registrasi Berhasil!', {
@@ -68,7 +68,7 @@
 	}
 </script>
 
-<main class="flex items-center justify-center min-h-screen bg-slate-100">
+<main class="flex items-center justify-center min-h-screen bg-slate-100 dark:bg-slate-950">
 	<Card class="w-full max-w-sm">
 		<CardHeader class="text-center">
 			<CardTitle class="text-2xl">Mulai Petualanganmu</CardTitle>
@@ -91,7 +91,7 @@
 				</div>
 			</form>
 			<p class="mt-4 text-center text-sm">
-				Sudah punya akun? <a href="/login" class="underline text-blue-600">Login di sini</a>
+				Sudah punya akun? <a href="/login" class="text-blue-600">Login di sini</a>
 			</p>
 		</CardContent>
 	</Card>

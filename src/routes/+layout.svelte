@@ -1,58 +1,67 @@
 <script lang="ts">
-	// Import-import lama
-	import { Toaster } from 'svelte-sonner';
+	// Import-import lengkap kita
 	import { userStore, profileStore } from '$lib/firebase/auth';
-	import '../app.css';
+	import { Toaster } from 'svelte-sonner';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Home, Swords, User, ShieldCheck } from 'lucide-svelte';
+	import ThemeToggle from '$lib/components/custom/ThemeToggle.svelte';
 	import SystemNotification from '$lib/components/custom/SystemNotification.svelte';
-
-	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import '../app.css';
 
-	// Props Svelte 5
 	let { children } = $props();
 
-	// 1. TAMBAHKAN STATE "SIAP"
-	// Secara default, halaman belum siap ditampilkan
+	// State untuk menahan tampilan halaman
 	let isReady = $state(false);
 
+	// --- LOGIKA GATEKEEPER BARU YANG BENAR (TANPA get()) ---
 	$effect(() => {
-		// Kondisi saat data masih loading (undefined adalah state awal dari store kita)
-		// Kita tahan tampilan dengan membuat isReady tetap false
-		if ($userStore === undefined || $profileStore === undefined) {
-			isReady = false;
-			return; // Hentikan eksekusi lebih lanjut sampai data ada
-		}
+		// Cukup gunakan $userStore dan $profileStore secara langsung.
+		// Svelte 5 secara otomatis akan menjalankan ulang effect ini saat nilainya berubah.
 
-		// Kondisi saat user sudah pasti logout (store bernilai null)
-		if ($userStore === null) {
-			isReady = true; // Tampilkan halaman (misalnya tombol login/register)
+		// Kondisi 1: Saat aplikasi baru dibuka, kita belum tahu status user. Tahan tampilan.
+		if ($userStore === undefined) {
+			isReady = false;
 			return;
 		}
 
-		// Kondisi saat user login dan data profilnya ada
+		// Kondisi 2: Saat kita sudah tahu user tidak login. Tampilkan halaman publik.
+		if ($userStore === null) {
+			isReady = true;
+			return;
+		}
+
+		// Kondisi 3: Saat kita tahu user login, tapi data profilnya dari Firestore masih dalam perjalanan. Tahan tampilan.
+		// Nilai awal profileStore adalah null, jadi kita tunggu sampai ada isinya.
+		if ($userStore && $profileStore === null) {
+			isReady = false;
+			return;
+		}
+
+		// Kondisi 4: Saat user dan profil sudah siap. Ini saatnya membuat keputusan.
 		if ($userStore && $profileStore) {
 			const isSetupComplete = $profileStore.isSetupComplete;
-			const isOnSetupPage = $page.route.id?.includes('/welcome/setup'); // Cek URL
+			const isOnSetupPage = $page.route.id?.includes('/welcome/setup');
 
 			if (isSetupComplete === false && !isOnSetupPage) {
-				// Redirect jika setup belum selesai
 				goto('/welcome/setup', { replaceState: true });
-				// isReady tetap false karena kita sedang redirect, tidak perlu tampilkan apa-apa
 			} else {
-				// Jika setup sudah selesai atau sudah di halaman setup, tampilkan halaman
-				isReady = true;
+				isReady = true; // Tampilkan halaman!
 			}
 		}
 	});
 </script>
 
+<!-- Bagian HTML di bawah ini tidak perlu diubah sama sekali -->
+
 <Toaster richColors position="top-center" />
 
-<header class="hidden md:flex p-4 bg-white border-b shadow-sm sticky top-0 z-10">
+<header
+	class="hidden md:flex p-4 bg-white dark:bg-slate-950 border-b dark:border-slate-800 shadow-sm sticky top-0 z-10"
+>
 	<nav class="container mx-auto flex justify-between items-center">
-		<a href="/" class="text-2xl font-bold text-gray-800">
+		<a href="/" class="text-2xl font-bold text-gray-800 dark:text-gray-50">
 			Solo<span class="text-blue-600">Fit</span>
 		</a>
 		<div class="flex items-center gap-2">
@@ -61,6 +70,7 @@
 				<a href="/profile"><Button variant="ghost">Profile</Button></a>
 				<a href="/dungeon"><Button variant="ghost">Dungeon</Button></a>
 			{/if}
+			<ThemeToggle />
 		</div>
 	</nav>
 </header>
@@ -69,40 +79,55 @@
 	{#if isReady}
 		{@render children()}
 	{:else}
-		<div class="flex justify-center items-center pt-20">
-			<p>Loading...</p>
+		<div class="flex justify-center items-center pt-40">
+			<p class="dark:text-gray-300 animate-pulse">Memuat data Hunter...</p>
 		</div>
 	{/if}
 </main>
 
-<footer class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-2 z-10">
-	<nav class="flex justify-around">
-		{#if $userStore}
-			<a href="/" class="flex flex-col items-center text-gray-600 hover:text-blue-600">
+{#if $userStore}
+	<footer
+		class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t dark:bg-slate-950 dark:border-slate-800 p-2 z-10"
+	>
+		<nav class="flex justify-around">
+			<a
+				href="/"
+				class="flex flex-col items-center transition-colors w-16 {$page.url.pathname === '/'
+					? 'text-blue-600 dark:text-blue-400'
+					: 'text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400'}"
+			>
 				<Home class="size-6" />
 				<span class="text-xs">Home</span>
 			</a>
-			<a href="/quest" class="flex flex-col items-center text-gray-600 hover:text-blue-600">
+			<a
+				href="/quest"
+				class="flex flex-col items-center transition-colors w-16 {$page.url.pathname === '/quest'
+					? 'text-blue-600 dark:text-blue-400'
+					: 'text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400'}"
+			>
 				<ShieldCheck class="size-6" />
 				<span class="text-xs">Quest</span>
 			</a>
-			<a href="/dungeon" class="flex flex-col items-center text-gray-600 hover:text-blue-600">
+			<a
+				href="/dungeon"
+				class="flex flex-col items-center transition-colors w-16 {$page.url.pathname === '/dungeon'
+					? 'text-blue-600 dark:text-blue-400'
+					: 'text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400'}"
+			>
 				<Swords class="size-6" />
 				<span class="text-xs">Dungeon</span>
 			</a>
-			<a href="/profile" class="flex flex-col items-center text-gray-600 hover:text-blue-600">
+			<a
+				href="/profile"
+				class="flex flex-col items-center transition-colors w-16 {$page.url.pathname === '/profile'
+					? 'text-blue-600 dark:text-blue-400'
+					: 'text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400'}"
+			>
 				<User class="size-6" />
 				<span class="text-xs">Profile</span>
 			</a>
-		{:else}
-			<a href="/login" class="flex flex-col items-center text-gray-600 hover:text-blue-600">
-				<User class="size-6" />
-				<span class="text-xs">Login</span>
-			</a>
-			<a href="/register" class="flex flex-col items-center text-gray-600 hover:text-blue-600">
-				<User class="size-6" />
-				<span class="text-xs">Register</span>
-			</a>
-		{/if}
-	</nav>
-</footer>
+		</nav>
+	</footer>
+{/if}
+
+<SystemNotification />

@@ -52,3 +52,13 @@ export interface TransactionResult {
 	statGained: string | null;
     statPointsGained: number; 
 }
+export interface Monster {
+	id: string;
+	name: string;
+	hp: number;
+	maxHp: number;
+	attack: number;
+	defense: number;
+	expReward: number;
+	imageUrl?: string; // Tanda tanya (?) berarti opsional
+}

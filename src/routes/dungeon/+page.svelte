@@ -1,7 +1,8 @@
 <script lang="ts">
+	// Import-import lengkap kita
 	import { userStore, profileStore } from '$lib/firebase/auth';
 	import { db } from '$lib/firebase/client';
-	import { doc, updateDoc, increment, runTransaction } from 'firebase/firestore';
+	import { doc, updateDoc, increment, collection, getDocs, runTransaction } from 'firebase/firestore';
 	import { toast } from 'svelte-sonner';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
@@ -15,7 +16,10 @@
 		DialogHeader,
 		DialogTitle
 	} from '$lib/components/ui/dialog/index.js';
+	import type { Monster, UserProfile, TransactionResult } from '$lib/types';
+	import { get } from 'svelte/store';
 
+	// Fungsi untuk warna HP adaptif
 	function getHpColorClass(current: number, max: number): string {
 		if (max === 0) return '[&>div]:bg-red-600';
 		const percentage = (current / max) * 100;
@@ -25,30 +29,58 @@
 		return '[&>div]:bg-red-600';
 	}
 
-	let monster = $state({
-		name: 'Goblin',
-		hp: 50,
-		maxHp: 50,
-		attack: 15,
-		defense: 5,
-		expReward: 25
-	});
+	// State pertarungan
+	let monster = $state<Monster | null>(null);
 	let battleLog = $state<string[]>([]);
-	let isBattleStarted = $state(false);
 	let isBattleOver = $state(false);
 	let battleResult = $state('');
 	let isConfirmationDialogOpen = $state(false);
 	let hasAttackedOnce = $state(false);
 
-	// PERBAIKAN 2: Tambahkan satu baris di sini untuk menutup dialog
+	// Fungsi untuk memulai pertarungan dengan monster acak
+	async function startBattle() {
+		const profile = get(profileStore);
+		if (profile && profile.hp <= 0) {
+			toast.error('HP kamu habis! Pulihkan dulu gih.');
+			return;
+		}
+		try {
+			const monstersSnapshot = await getDocs(collection(db, 'monsters'));
+			const monsterPool = monstersSnapshot.docs.map((d) => ({
+				...(d.data() as Omit<Monster, 'id'>),
+				id: d.id
+			}));
+			if (monsterPool.length === 0) {
+				toast.error('Tidak ada monster di dalam dungeon saat ini.');
+				return;
+			}
+			const randomIndex = Math.floor(Math.random() * monsterPool.length);
+			const randomMonster = monsterPool[randomIndex];
+			monster = {
+				...randomMonster,
+				hp: randomMonster.maxHp
+			};
+			battleLog = [`Seekor ${monster.name} liar muncul di hadapanmu!`];
+			isBattleOver = false;
+			battleResult = '';
+			hasAttackedOnce = false;
+		} catch (error) {
+			console.error('Gagal memulai pertarungan:', error);
+			toast.error('Gagal memasuki dungeon.');
+		}
+	}
+
+	// Fungsi yang menjalankan logika serangan
 	async function executeAttack() {
-		isConfirmationDialogOpen = false; // <-- MENUTUP DIALOG
-		if (isBattleOver || !$userStore || !$profileStore) return;
+		isConfirmationDialogOpen = false; // Tutup dialog setelah konfirmasi
+		if (isBattleOver || !$userStore || !$profileStore || !monster) return;
 		hasAttackedOnce = true;
 
+		// Giliran Pemain
 		const playerDamage = Math.max(1, $profileStore.stats.strength * 2 - monster.defense);
 		monster.hp = Math.max(0, monster.hp - playerDamage);
 		battleLog = [...battleLog, `Kamu menyerang ${monster.name} dan memberikan ${playerDamage} damage!`];
+
 		if (monster.hp <= 0) {
 			isBattleOver = true;
 			battleResult = 'win';
@@ -56,10 +88,13 @@
 			await grantRewards(monster.expReward);
 			return;
 		}
+
+		// Giliran Monster
 		const monsterDamage = Math.max(1, Math.floor(monster.attack - $profileStore.stats.stamina / 2));
 		const userDocRef = doc(db, 'users', $userStore.uid);
 		await updateDoc(userDocRef, { hp: increment(-monsterDamage) });
 		battleLog = [...battleLog, `${monster.name} menyerang kamu dan memberikan ${monsterDamage} damage!`];
+
 		setTimeout(() => {
 			if ($profileStore && $profileStore.hp <= 0) {
 				isBattleOver = true;
@@ -69,6 +104,7 @@
 		}, 200);
 	}
 
+	// Fungsi yang dipanggil oleh tombol Serang
 	function handleAttackClick() {
 		if (hasAttackedOnce) {
 			executeAttack();
@@ -76,35 +112,32 @@
 			isConfirmationDialogOpen = true;
 		}
 	}
+
+	// Fungsi untuk memberi hadiah EXP setelah menang
 	async function grantRewards(expReward: number) {
-		if (!$userStore) return;
+		const currentUser = get(userStore);
+		if (!currentUser) return;
 		try {
-			const userDocRef = doc(db, 'users', $userStore.uid);
+			const userDocRef = doc(db, 'users', currentUser.uid);
 			await updateDoc(userDocRef, { exp: increment(expReward) });
 			toast.success(`Kamu mendapatkan ${expReward} EXP!`);
+			// Logika untuk cek level up utama dan mastery ada di Halaman Quest,
+			// jadi penambahan EXP di sini juga berpotensi memicu level up tersebut.
 		} catch (error) {
 			console.error('Gagal memberi hadiah:', error);
 		}
 	}
-	function startBattle() {
-		if ($profileStore && $profileStore.hp <= 0) {
-			toast.error('HP kamu habis! Pulihkan dulu gih.');
-			return;
-		}
-		monster.hp = monster.maxHp;
-		battleLog = [`Seekor ${monster.name} liar muncul di hadapanmu!`];
-		isBattleStarted = true;
-		isBattleOver = false;
-		battleResult = '';
-		hasAttackedOnce = false;
-	}
+
+	// Fungsi untuk memulihkan HP
 	async function fullyHeal() {
-		if (!$userStore || !$profileStore) return;
-		const userDocRef = doc(db, 'users', $userStore.uid);
+		const currentUser = get(userStore);
+		const profile = get(profileStore);
+		if (!currentUser || !profile) return;
+		const userDocRef = doc(db, 'users', currentUser.uid);
 		try {
-			await updateDoc(userDocRef, { hp: $profileStore.maxHp });
+			await updateDoc(userDocRef, { hp: profile.maxHp });
 			toast.success('HP telah pulih sepenuhnya!');
-			startBattle();
+			startBattle(); // Mulai pertarungan baru setelah pulih
 		} catch (error) {
 			console.error('Gagal memulihkan HP:', error);
 			toast.error('Gagal memulihkan HP.');
@@ -116,14 +149,14 @@
 	<div class="flex items-center gap-4 mb-8">
 		<Swords class="size-9 text-destructive" />
 		<div>
-			<h1 class="text-3xl font-bold">Dungeon: Hutan Goblin</h1>
-			<p class="text-gray-500">Buktikan kekuatanmu, Hunter!</p>
+			<h1 class="text-3xl font-bold">Dungeon Entrance</h1>
+			<p class="text-gray-500 dark:text-gray-400">Tantangan baru menanti, Hunter!</p>
 		</div>
 	</div>
 
-	{#if !isBattleStarted}
+	{#if !monster}
 		<div class="text-center mt-16">
-			<Button onclick={startBattle} size="lg">Masuk Dungeon</Button>
+			<Button onclick={startBattle} size="lg">Cari Pertarungan</Button>
 		</div>
 	{:else if $profileStore}
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -141,13 +174,9 @@
 							</div>
 							<span class="text-sm font-mono text-red-500">{$profileStore.hp} / {$profileStore.maxHp}</span>
 						</div>
-						<Progress
-							value={$profileStore.hp}
-							max={$profileStore.maxHp}
-							class={getHpColorClass($profileStore.hp, $profileStore.maxHp)}
-						/>
+						<Progress value={$profileStore.hp} max={$profileStore.maxHp} class={getHpColorClass($profileStore.hp, $profileStore.maxHp)} />
 					</div>
-					<div class="text-sm space-y-1 text-gray-600 pt-2 border-t">
+					<div class="text-sm space-y-1 text-gray-600 dark:text-gray-300 pt-2 border-t dark:border-slate-700">
 						<p>Strength: {$profileStore.stats.strength}</p>
 						<p>Agility: {$profileStore.stats.agility}</p>
 						<p>Stamina: {$profileStore.stats.stamina}</p>
@@ -173,25 +202,17 @@
 							</div>
 							<span class="text-sm font-mono text-green-400">{monster.hp} / {monster.maxHp}</span>
 						</div>
-						<Progress
-							value={monster.hp}
-							max={monster.maxHp}
-							class={getHpColorClass(monster.hp, monster.maxHp)}
-						/>
+						<Progress value={monster.hp} max={monster.maxHp} class={getHpColorClass(monster.hp, monster.maxHp)} />
 					</div>
 					{#if !isBattleOver}
 						<div class="pt-4 text-center">
 							<Button onclick={handleAttackClick} variant="destructive" size="lg">SERANG!</Button>
 						</div>
 					{:else}
-						<div
-							class="mt-4 text-center p-4 rounded-lg {battleResult === 'win'
-								? 'bg-green-500'
-								: 'bg-red-500'}"
-						>
+						<div class="mt-4 text-center p-4 rounded-lg {battleResult === 'win' ? 'bg-green-500' : 'bg-red-500'}">
 							<h3 class="text-2xl font-bold">{battleResult === 'win' ? 'KEMENANGAN!' : 'KEKALAHAN!'}</h3>
 							{#if battleResult === 'win'}
-								<Button onclick={startBattle} class="mt-2">Lawan Lagi</Button>
+								<Button onclick={startBattle} class="mt-2">Cari Lawan Baru</Button>
 							{:else}
 								<Button onclick={fullyHeal} class="mt-2">Pulihkan HP & Coba Lagi</Button>
 							{/if}
@@ -221,7 +242,7 @@
 					<ShieldAlert class="size-5 text-yellow-500" />
 					[ PERINGATAN SISTEM ]
 				</DialogTitle>
-				<DialogDescription class="pt-4 text-md text-slate-600">
+				<DialogDescription class="pt-4 text-md text-slate-600 dark:text-slate-300">
 					Sekali pertarungan dimulai, tidak ada jalan untuk lari. Kamu harus bertarung sampai salah
 					satu pihak tumbang.
 					<p class="font-bold mt-4">Lanjutkan pertarungan?</p>
