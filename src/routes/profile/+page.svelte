@@ -1,139 +1,153 @@
 <script lang="ts">
-	// Script lengkap dan benar untuk halaman profil
-	import { userStore, profileStore } from '$lib/firebase/auth';
+	import { profileStore, userStore } from '$lib/firebase/auth';
 	import { db, auth } from '$lib/firebase/client';
-	import { doc, updateDoc, increment, runTransaction } from 'firebase/firestore';
+	import { doc, updateDoc, increment } from 'firebase/firestore';
 	import { toast } from 'svelte-sonner';
-	import { signOut } from 'firebase/auth';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
-	import Button from '$lib/components/ui/button/button.svelte';
-	import { Progress } from '$lib/components/ui/progress/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
-	import { Sword, Shield, Heart, Star, Award, Activity, Settings } from 'lucide-svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '$lib/components/ui/card';
+	import { Progress } from '$lib/components/ui/progress';
+	import { User, Star, LogOut, Swords, Brain, Dumbbell, Zap, Settings } from 'lucide-svelte';
 	import ThemeToggle from '$lib/components/custom/ThemeToggle.svelte';
-	import { goto } from '$app/navigation';
-	
-	type StatName = 'strength' | 'agility' | 'stamina';
 
-	async function allocateStatPoint(statName: StatName) {
-		if (!$userStore) {
-			toast.error('Kamu harus login.');
+	// Fungsi incrementStat tidak berubah
+	async function incrementStat(statName: 'strength' | 'stamina' | 'agility' | 'intelligence') {
+		if (!$profileStore || !$userStore || $profileStore.statPoints <= 0) {
+			toast.error('Poin Status tidak cukup!');
 			return;
 		}
 		try {
-			await runTransaction(db, async (transaction) => {
-				const userDocRef = doc(db, 'users', $userStore.uid);
-				const userDoc = await transaction.get(userDocRef);
-				if (!userDoc.exists()) throw new Error('Dokumen pengguna tidak ditemukan.');
-				const currentPoints = userDoc.data().statPoints;
-				if (currentPoints <= 0) throw new Error('Poin tidak cukup.');
-				let updates: { [key: string]: any } = {
-					statPoints: increment(-1),
-					[`stats.${statName}`]: increment(1)
-				};
-				if (statName === 'stamina') {
-					updates = { ...updates, maxHp: increment(10), hp: increment(10) };
-				}
-				transaction.update(userDocRef, updates);
+			const userRef = doc(db, 'users', $userStore.uid);
+			await updateDoc(userRef, {
+				statPoints: increment(-1),
+				[`stats.${statName}`]: increment(1)
 			});
-			toast.success(`+1 ${statName.charAt(0).toUpperCase() + statName.slice(1)}!`);
-		} catch (error: any) {
-			console.error('Gagal alokasi poin:', error);
-			toast.error('Gagal menaikkan status', { description: error.message });
+			toast.success(`Stat ${statName.charAt(0).toUpperCase() + statName.slice(1)} berhasil ditingkatkan!`);
+		} catch (error) {
+			console.error(`Gagal meningkatkan stat ${statName}:`, error);
+			toast.error('Terjadi kesalahan saat meningkatkan stat.');
 		}
 	}
 
-	async function handleLogout() {
-		try {
-			await signOut(auth);
-			toast.success('Kamu telah berhasil logout.');
-			goto('/');
-		} catch (error: any) {
-			toast.error('Gagal logout', { description: error.message });
-		}
+	function handleLogout() {
+		auth.signOut();
+		toast.success('Kamu berhasil logout.');
 	}
 </script>
 
-<main class="p-4 md:p-8 container mx-auto">
-	
-	<div class="mb-8">
-		<h1 class="text-4xl font-bold">Profil Karakter</h1>
-		<p class="text-lg text-gray-500 dark:text-gray-400">Atur dan lihat perkembangan Hunter-mu di sini.</p>
-	</div>
-
+<main class="container mx-auto p-4 md:p-8 max-w-4xl">
 	{#if $profileStore}
-		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-			<div class="lg:col-span-1 order-1">
-				<Card>
-					<CardHeader><CardTitle>Info Utama</CardTitle></CardHeader>
-					<CardContent class="space-y-4">
-						<div class="flex items-center justify-between text-md"><div class="flex items-center gap-2 dark:text-gray-300"><Award class="size-5 text-yellow-500" /><span>Level</span></div><span class="font-mono font-bold dark:text-white">{$profileStore.level}</span></div>
-						<div class="flex items-center justify-between text-md"><div class="flex items-center gap-2 dark:text-gray-300"><Heart class="size-5 text-red-500" /><span>HP</span></div><span class="font-mono font-bold text-red-600">{$profileStore.hp} / {$profileStore.maxHp}</span></div>
-						<div class="space-y-1"><div class="flex justify-between items-baseline text-sm dark:text-gray-400"><span>Main EXP</span><span class="font-mono">{$profileStore.exp} / {$profileStore.requiredExp}</span></div><Progress value={$profileStore.exp} max={$profileStore.requiredExp} /></div>
-						<div class="flex items-center justify-between text-md pt-4 border-t dark:border-slate-700"><div class="flex items-center gap-2 dark:text-gray-300"><Star class="size-5 text-blue-500" /><span>Poin Tersedia</span></div><span class="font-mono text-2xl font-bold text-blue-600">{$profileStore.statPoints}</span></div>
-					</CardContent>
-				</Card>
+		<div class="flex items-center justify-between mb-8">
+			<div class="flex items-center gap-4">
+				<User class="size-9 text-primary" />
+				<div>
+					<h1 class="text-3xl font-bold">{$profileStore.username}</h1>
+					<p class="text-muted-foreground">Level {$profileStore.level} Hunter</p>
+				</div>
 			</div>
-
-			<div class="lg:col-span-2 order-2">
-				<Card>
-					<CardHeader><CardTitle>Alokasi Atribut</CardTitle></CardHeader>
-					<CardContent class="space-y-3">
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-2 dark:text-gray-300"><Sword class="size-5 text-gray-500 dark:text-gray-400" /><span>Strength</span></div>
-							<div class="flex items-center gap-4">
-								<span class="font-mono text-lg w-8 text-right">{$profileStore.stats.strength}</span>
-								<Button onclick={() => allocateStatPoint('strength')} disabled={$profileStore.statPoints <= 0} size="sm" variant="outline">+</Button>
-							</div>
-						</div>
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-2 dark:text-gray-300"><Activity class="size-5 text-gray-500 dark:text-gray-400" /><span>Agility</span></div>
-							<div class="flex items-center gap-4">
-								<span class="font-mono text-lg w-8 text-right">{$profileStore.stats.agility}</span>
-								<Button onclick={() => allocateStatPoint('agility')} disabled={$profileStore.statPoints <= 0} size="sm" variant="outline">+</Button>
-							</div>
-						</div>
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-2 dark:text-gray-300"><Shield class="size-5 text-gray-500 dark:text-gray-400" /><span>Stamina</span></div>
-							<div class="flex items-center gap-4">
-								<span class="font-mono text-lg w-8 text-right">{$profileStore.stats.stamina}</span>
-								<Button onclick={() => allocateStatPoint('stamina')} disabled={$profileStore.statPoints <= 0} size="sm" variant="outline">+</Button>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-
-			<div class="lg:col-span-2 order-3">
-				<Card>
-					<CardHeader><CardTitle>Progres Mastery</CardTitle></CardHeader>
-					<CardContent class="space-y-4">
-						<div class="space-y-1"><div class="flex justify-between items-baseline text-sm dark:text-gray-300"><span class="font-medium">Strength Mastery (Lv. {$profileStore.mastery.strength.level})</span><span class="font-mono">{$profileStore.mastery.strength.exp} / {$profileStore.mastery.strength.requiredExp}</span></div><Progress value={$profileStore.mastery.strength.exp} max={$profileStore.mastery.strength.requiredExp} /></div>
-						<div class="space-y-1"><div class="flex justify-between items-baseline text-sm dark:text-gray-300"><span class="font-medium">Stamina Mastery (Lv. {$profileStore.mastery.stamina.level})</span><span class="font-mono">{$profileStore.mastery.stamina.exp} / {$profileStore.mastery.stamina.requiredExp}</span></div><Progress value={$profileStore.mastery.stamina.exp} max={$profileStore.mastery.stamina.requiredExp} /></div>
-						<div class="space-y-1"><div class="flex justify-between items-baseline text-sm dark:text-gray-300"><span class="font-medium">Agility Mastery (Lv. {$profileStore.mastery.agility.level})</span><span class="font-mono">{$profileStore.mastery.agility.exp} / {$profileStore.mastery.agility.requiredExp}</span></div><Progress value={$profileStore.mastery.agility.exp} max={$profileStore.mastery.agility.requiredExp} /></div>
-					</CardContent>
-				</Card>
-			</div>
-
-			<div class="lg:col-span-1 order-4">
-				<Card>
-					<CardHeader class="flex flex-row items-center gap-4 space-y-0">
-						<Settings class="size-6 text-muted-foreground" />
-						<CardTitle>Pengaturan</CardTitle>
-					</CardHeader>
-					<CardContent class="space-y-4">
-						<div class="flex items-center justify-between">
-							<Label class="text-sm">Mode Tampilan</Label>
-							<ThemeToggle />
-						</div>
-						<div class="pt-4 border-t dark:border-slate-700">
-							<Button onclick={handleLogout} variant="destructive" class="w-full">Logout</Button>
-						</div>
-					</CardContent>
-				</Card>
+			<div class="flex items-center gap-2">
+				<ThemeToggle />
+				<Button onclick={handleLogout} variant="destructive" size="sm">
+					<LogOut class="size-4 md:mr-2" />
+					<span class="hidden md:inline">Logout</span>
+				</Button>
 			</div>
 		</div>
+
+		<Card class="mb-8">
+			<CardHeader>
+				<CardTitle class="flex items-center gap-2">
+					<Star class="size-5 text-yellow-400" />
+					Alokasi Poin Status
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<p class="text-muted-foreground mb-4">
+					Kamu punya <span class="font-bold text-primary">{$profileStore.statPoints}</span> poin yang bisa dialokasikan.
+				</p>
+				<div class="space-y-4">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<Dumbbell class="size-5 text-red-500" />
+							<span class="font-medium">Strength</span>
+						</div>
+						<div class="flex items-center gap-4">
+							<span class="font-bold text-lg w-8 text-center">{$profileStore.stats.strength}</span>
+							<Button onclick={() => incrementStat('strength')} size="icon" disabled={$profileStore.statPoints <= 0}>+</Button>
+						</div>
+					</div>
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<Swords class="size-5 text-green-500" />
+							<span class="font-medium">Stamina</span>
+						</div>
+						<div class="flex items-center gap-4">
+							<span class="font-bold text-lg w-8 text-center">{$profileStore.stats.stamina}</span>
+							<Button onclick={() => incrementStat('stamina')} size="icon" disabled={$profileStore.statPoints <= 0}>+</Button>
+						</div>
+					</div>
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<Zap class="size-5 text-blue-500" />
+							<span class="font-medium">Agility</span>
+						</div>
+						<div class="flex items-center gap-4">
+							<span class="font-bold text-lg w-8 text-center">{$profileStore.stats.agility}</span>
+							<Button onclick={() => incrementStat('agility')} size="icon" disabled={$profileStore.statPoints <= 0}>+</Button>
+						</div>
+					</div>
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<Brain class="size-5 text-purple-500" />
+							<span class="font-medium">Intelligence</span>
+						</div>
+						<div class="flex items-center gap-4">
+							<span class="font-bold text-lg w-8 text-center">{$profileStore.stats.intelligence ?? 0}</span>
+							<Button onclick={() => incrementStat('intelligence')} size="icon" disabled={$profileStore.statPoints <= 0}>+</Button>
+						</div>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
+
+		<Card>
+			<CardHeader>
+				<CardTitle>Mastery EXP</CardTitle>
+				<CardDescription>Latih terus untuk membuka potensi tersembunyi!</CardDescription>
+			</CardHeader>
+			<CardContent class="space-y-4">
+				<div>
+					<div class="flex justify-between mb-1">
+						<span class="text-sm font-medium">Strength Mastery</span>
+						<span class="text-sm text-muted-foreground">
+							{$profileStore.mastery.strength?.exp ?? 0} / {$profileStore.mastery.strength?.requiredExp ?? 100}
+						</span>
+					</div>
+					<Progress value={$profileStore.mastery.strength?.exp ?? 0} max={$profileStore.mastery.strength?.requiredExp ?? 100} />
+				</div>
+				<div>
+					<div class="flex justify-between mb-1">
+						<span class="text-sm font-medium">Agility Mastery</span>
+						<span class="text-sm text-muted-foreground">
+							{$profileStore.mastery.agility?.exp ?? 0} / {$profileStore.mastery.agility?.requiredExp ?? 100}
+						</span>
+					</div>
+					<Progress value={$profileStore.mastery.agility?.exp ?? 0} max={$profileStore.mastery.agility?.requiredExp ?? 100} />
+				</div>
+				<div>
+					<div class="flex justify-between mb-1">
+						<span class="text-sm font-medium">Intelligence Mastery</span>
+						<span class="text-sm text-muted-foreground">
+							{$profileStore.mastery.intelligence?.exp ?? 0} / {$profileStore.mastery.intelligence?.requiredExp ?? 100}
+						</span>
+					</div>
+					<Progress value={$profileStore.mastery.intelligence?.exp ?? 0} max={$profileStore.mastery.intelligence?.requiredExp ?? 100} />
+				</div>
+			</CardContent>
+		</Card>
+
 	{:else}
-		<p class="text-center">Memuat profil...</p>
+		<div class="text-center py-20">
+			<p class="text-muted-foreground">Memuat data profil...</p>
+		</div>
 	{/if}
 </main>

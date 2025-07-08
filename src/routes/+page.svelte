@@ -1,11 +1,13 @@
 <script lang="ts">
-	// Hanya import yang benar-benar dipakai di halaman ini
 	import { userStore, profileStore } from '$lib/firebase/auth';
 	import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '$lib/components/ui/card/index.js';
 	import { Progress } from '$lib/components/ui/progress/index.js';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Award, Heart, Star, Swords, ShieldCheck } from 'lucide-svelte';
+	import DailyReward from '$lib/components/DailyReward.svelte';
+	import { Toaster } from 'svelte-sonner'; 
 </script>
+
 
 <main class="p-4 md:p-8 container mx-auto">
 	{#if $userStore === undefined || ($userStore && $profileStore === undefined)}
@@ -21,7 +23,9 @@
 				Ubah Latihan Membosankan Menjadi Petualangan RPG Epik. Naikkan Level di Dunia Nyata.
 			</p>
 			<div class="space-y-4 w-full max-w-xs">
-				<a href="/register" class="w-full"><Button size="lg" class="w-full">Mulai Petualangan</Button></a>
+				<a href="/register" class="w-full">
+                    <Button size="lg" class="w-full">Mulai Petualangan</Button>
+                </a>
 				<p class="text-sm">
 					Sudah punya akun?
 					<a href="/login"><Button variant="link">Login di sini</Button></a>
@@ -66,7 +70,10 @@
 				</Card>
 			</div>
 
-			<div class="grid gap-4 md:grid-cols-2">
+            <div class="max-w-md mx-auto">
+                <DailyReward />
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
 				<a href="/quest">
 					<Card class="hover:bg-accent dark:hover:bg-slate-800 transition-colors">
 						<CardHeader class="flex flex-row items-center gap-4">

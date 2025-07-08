@@ -1,173 +1,189 @@
 <script lang="ts">
-	// Import-import kita
-	import { userStore, profileStore } from '$lib/firebase/auth';
-	import { db } from '$lib/firebase/client';
-	import { doc, updateDoc, increment, collection, getDocs, runTransaction } from 'firebase/firestore';
-	import { toast } from 'svelte-sonner';
-	import Button from '$lib/components/ui/button/button.svelte';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
-	import { Progress } from '$lib/components/ui/progress/index.js';
-	import { Swords, User, Heart, Bot, ScrollText, ShieldAlert, KeyRound } from 'lucide-svelte';
-	import {
-		Dialog,
-		DialogContent,
-		DialogDescription,
-		DialogFooter,
-		DialogHeader,
-		DialogTitle
-	} from '$lib/components/ui/dialog/index.js';
-	import type { Monster, UserProfile, TransactionResult } from '$lib/types';
-	import { get } from 'svelte/store';
+    // Import-import kita
+    import { processRewards } from '$lib/services/rewardService';
+    import { userStore, profileStore } from '$lib/firebase/auth';
+    import { db } from '$lib/firebase/client';
+    import { doc, updateDoc, increment, collection, getDocs, runTransaction, writeBatch } from 'firebase/firestore';
+    import { toast } from 'svelte-sonner';
+    import Button from '$lib/components/ui/button/button.svelte';
+    import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
+    import { Progress } from '$lib/components/ui/progress';
+    import { Swords, User, Heart, Bot, ScrollText, ShieldAlert, KeyRound, FlaskConical } from 'lucide-svelte';
+    import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '$lib/components/ui/dialog';
+    import type { Monster, UserProfile } from '$lib/types';
+    import { get } from 'svelte/store';
+    import { onMount } from 'svelte';
 
-	// Fungsi getHpColorClass tidak berubah
-	function getHpColorClass(current: number, max: number): string {
-		if (max === 0) return '[&>div]:bg-red-600';
-		const percentage = (current / max) * 100;
-		if (percentage > 70) return '[&>div]:bg-green-500';
-		if (percentage > 40) return '[&>div]:bg-yellow-400';
-		if (percentage > 15) return '[&>div]:bg-orange-500';
-		return '[&>div]:bg-red-600';
-	}
+    // State pertarungan
+    let monster = $state<UserProfile['activeDungeonSession'] | null>(null);
+    let battleLog = $state<string[]>([]);
+    let isBattleOver = $state(false);
+    let battleResult = $state('');
+    let isConfirmationDialogOpen = $state(false);
 
-	// State pertarungan
-	let monster = $state<Monster | null>(null);
-	let battleLog = $state<string[]>([]);
-	let isBattleOver = $state(false);
-	let battleResult = $state('');
-	let isConfirmationDialogOpen = $state(false);
-	let hasAttackedOnce = $state(false);
+    // Cek sesi dungeon yang ada saat komponen pertama kali dimuat
+    onMount(() => {
+        const session = get(profileStore)?.activeDungeonSession;
+        if (session) {
+            monster = session;
+            battleLog = [`Kamu melanjutkan pertarungan melawan ${session.monsterName}!`];
+        }
+    });
 
-	// --- FUNGSI STARTBATTLE YANG DI-UPGRADE ---
-	async function startBattle() {
-		const profile = get(profileStore);
-		const currentUser = get(userStore);
+    // Fungsi startBattle yang baru
+    async function startBattle() {
+        const profile = get(profileStore);
+        const currentUser = get(userStore);
+        if (!profile || !currentUser) return;
+        if (profile.hp <= 0) {
+            toast.error('HP kamu habis! Pulihkan dulu.');
+            return;
+        }
+        if (profile.dungeonKeys <= 0) {
+            toast.error('Kunci Dungeon tidak cukup!');
+            return;
+        }
 
-		if (!profile || !currentUser) return;
+        try {
+            const monstersSnapshot = await getDocs(collection(db, 'monsters'));
+            const monsterPool = monstersSnapshot.docs.map((d) => ({ ...d.data(), id: d.id })) as (Monster & { id: string })[];
+            const randomMonster = monsterPool[Math.floor(Math.random() * monsterPool.length)];
 
-		// 1. Cek HP dulu
-		if (profile.hp <= 0) {
-			toast.error('HP kamu habis! Pulihkan dulu gih.');
-			return;
-		}
+            const sessionData = {
+                monsterId: randomMonster.id,
+                monsterName: randomMonster.name,
+                monsterHp: randomMonster.maxHp,
+                maxHp: randomMonster.maxHp,
+                attack: randomMonster.attack,
+                defense: randomMonster.defense,
+                expReward: randomMonster.expReward,
+                goldReward: randomMonster.goldReward
+            };
 
-		// 2. Cek Kunci Dungeon
-		if (profile.dungeonKeys <= 0) {
-			toast.error('Kunci Dungeon tidak cukup!');
-			return;
-		}
+            const userDocRef = doc(db, 'users', currentUser.uid);
+            await updateDoc(userDocRef, {
+                dungeonKeys: increment(-1),
+                activeDungeonSession: sessionData
+            });
 
-		try {
-			// 3. Kurangi Kunci (Sistem "Bayar")
-			const userDocRef = doc(db, 'users', currentUser.uid);
-			await updateDoc(userDocRef, {
-				dungeonKeys: increment(-1)
-			});
-			toast.info('1 Kunci Dungeon telah digunakan.');
+            monster = sessionData;
+            battleLog = [`Seekor ${monster.monsterName} liar muncul di hadapanmu!`];
+            isBattleOver = false;
+            battleResult = '';
+            toast.info('1 Kunci Dungeon telah digunakan.');
+        } catch (error) {
+            console.error('Gagal memulai pertarungan:', error);
+            toast.error('Gagal memasuki dungeon.');
+        }
+    }
 
-			// Ambil monster acak (logika ini tetap sama)
-			const monstersSnapshot = await getDocs(collection(db, 'monsters'));
-			const monsterPool = monstersSnapshot.docs.map((d) => ({
-				...(d.data() as Omit<Monster, 'id'>),
-				id: d.id
-			}));
-			if (monsterPool.length === 0) {
-				toast.error('Tidak ada monster di dalam dungeon saat ini.');
-				return;
-			}
-			const randomIndex = Math.floor(Math.random() * monsterPool.length);
-			const randomMonster = monsterPool[randomIndex];
-			
-			monster = { ...randomMonster, hp: randomMonster.maxHp };
-			battleLog = [`Seekor ${monster.name} liar muncul di hadapanmu!`];
-			isBattleOver = false;
-			battleResult = '';
-			hasAttackedOnce = false;
-		} catch (error) {
-			console.error('Gagal memulai pertarungan:', error);
-			toast.error('Gagal memasuki dungeon.');
-		}
-	}
+    // Fungsi executeAttack yang baru
+    async function executeAttack() {
+        const currentUser = get(userStore);
+        const profile = get(profileStore);
+        if (isBattleOver || !currentUser || !profile || !monster) return;
 
-	async function executeAttack() {
-		isConfirmationDialogOpen = false;
-		if (isBattleOver || !$userStore || !$profileStore) return;
-		
-		const currentMonster = monster;
-		if (!currentMonster) return;
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const playerDamage = Math.max(1, profile.stats.strength * 2 - monster.defense);
+        const newMonsterHp = Math.max(0, monster.monsterHp - playerDamage);
 
-		hasAttackedOnce = true;
+        const batch = writeBatch(db);
+        batch.update(userDocRef, { 'activeDungeonSession.monsterHp': newMonsterHp });
+        battleLog = [...battleLog, `Kamu menyerang ${monster.monsterName} dan memberikan ${playerDamage} damage!`];
 
-		const playerDamage = Math.max(1, $profileStore.stats.strength * 2 - currentMonster.defense);
-		const newMonsterHp = Math.max(0, (currentMonster.hp ?? 0) - playerDamage);
-		monster = { ...currentMonster, hp: newMonsterHp };
-		battleLog = [...battleLog, `Kamu menyerang ${currentMonster.name} dan memberikan ${playerDamage} damage!`];
+        if (newMonsterHp <= 0) {
+            isBattleOver = true;
+            battleResult = 'win';
+            await grantRewards(monster);
+        } else {
+            const monsterDamage = Math.max(1, Math.floor(monster.attack - profile.stats.stamina / 2));
+            batch.update(userDocRef, { hp: increment(-monsterDamage) });
+            battleLog = [...battleLog, `${monster.monsterName} menyerang kamu dan memberikan ${monsterDamage} damage!`];
 
-		if (newMonsterHp <= 0) {
-			isBattleOver = true;
-			battleResult = 'win';
-			battleLog = [...battleLog, `${currentMonster.name} telah dikalahkan! Kamu menang!`];
-			await grantRewards(currentMonster); // <-- Kirim seluruh objek monster
-			return;
-		}
+            if (profile.hp - monsterDamage <= 0) {
+                isBattleOver = true;
+                battleResult = 'lose';
+                battleLog = [...battleLog, `HP kamu habis! Kamu telah dikalahkan!`];
+                // Hapus sesi dungeon saat kalah
+                batch.update(userDocRef, { activeDungeonSession: null });
+            }
+        }
+        await batch.commit();
+    }
 
-		const monsterDamage = Math.max(1, Math.floor(currentMonster.attack - $profileStore.stats.stamina / 2));
-		const userDocRef = doc(db, 'users', $userStore.uid);
-		await updateDoc(userDocRef, { hp: increment(-monsterDamage) });
-		battleLog = [...battleLog, `${currentMonster.name} menyerang kamu dan memberikan ${monsterDamage} damage!`];
+    // Fungsi grantRewards yang baru
+    async function grantRewards(killedMonster: NonNullable<UserProfile['activeDungeonSession']>) {
+        const currentUser = get(userStore);
+        if (!currentUser) return;
+        try {
+            const rewardPayload = {
+                exp: killedMonster.expReward,
+                gold: killedMonster.goldReward,
+                masteryType: 'strength' as const,
+                masteryExp: 10
+            };
+            const notifications = await processRewards(currentUser.uid, rewardPayload);
 
-		setTimeout(() => {
-			if ($profileStore && $profileStore.hp <= 0) {
-				isBattleOver = true;
-				battleResult = 'lose';
-				battleLog = [...battleLog, `HP kamu habis! Kamu telah dikalahkan!`];
-			}
-		}, 200);
-	}
+            // Hapus sesi dungeon setelah menang
+            const userDocRef = doc(db, 'users', currentUser.uid);
+            await updateDoc(userDocRef, { activeDungeonSession: null });
 
-	function handleAttackClick() {
-		if (hasAttackedOnce) {
-			executeAttack();
-		} else {
-			isConfirmationDialogOpen = true;
-		}
-	}
+            battleLog = [
+                ...battleLog,
+                `${killedMonster.monsterName} telah dikalahkan! Kamu menang!`,
+                `🏆 Kamu mendapatkan ${rewardPayload.exp} EXP dan ${rewardPayload.gold} Gold!`,
+                ...notifications
+            ];
+        } catch (error) {
+            console.error('Gagal memberi hadiah:', error);
+        }
+    }
 
-	// --- FUNGSI GRANTREWARDS YANG DI-UPGRADE ---
-	async function grantRewards(killedMonster: Monster) {
-		const currentUser = get(userStore);
-		if (!currentUser) return;
-		try {
-			const userDocRef = doc(db, 'users', currentUser.uid);
-			// Hadiah sekarang termasuk Gold
-			const goldGained = killedMonster.goldReward ?? Math.floor(killedMonster.expReward / 2);
-			
-			await updateDoc(userDocRef, { 
-				exp: increment(killedMonster.expReward),
-				gold: increment(goldGained)
-			});
-			toast.success(`Kamu mendapatkan ${killedMonster.expReward} EXP dan ${goldGained} Gold!`);
-		} catch (error) {
-			console.error('Gagal memberi hadiah:', error);
-			toast.error('Gagal memberi hadiah dungeon.');
-		}
-	}
+    // --- SISTEM POTION BARU ---
+    async function usePotion() {
+        const currentUser = get(userStore);
+        const profile = get(profileStore);
+        if (!currentUser || !profile || profile.healthPotions <= 0) {
+            toast.error("Kamu tidak punya Health Potion!");
+            return;
+        }
 
-	async function fullyHeal() {
-		const currentUser = get(userStore);
-		const profile = get(profileStore);
-		if (!currentUser || !profile) return;
-		const userDocRef = doc(db, 'users', currentUser.uid);
-		try {
-			await updateDoc(userDocRef, { hp: profile.maxHp });
-			toast.success('HP telah pulih sepenuhnya! Siap tempur lagi!');
-			monster = null;
-		} catch (error) {
-			console.error('Gagal memulihkan HP:', error);
-			toast.error('Gagal memulihkan HP.');
-		}
-	}
+        const healAmount = Math.floor(profile.maxHp * 0.5); // Potion memulihkan 50% Max HP
+        const newHp = Math.min(profile.maxHp, profile.hp + healAmount);
+
+        try {
+            const userDocRef = doc(db, 'users', currentUser.uid);
+            await updateDoc(userDocRef, {
+                healthPotions: increment(-1),
+                hp: newHp
+            });
+            toast.success(`Kamu memulihkan ${healAmount} HP!`);
+            battleLog = [...battleLog, `Kamu menggunakan Potion dan memulihkan ${healAmount} HP.`];
+        } catch (error) {
+            toast.error("Gagal menggunakan potion.");
+        }
+    }
+
+    // Fungsi untuk kembali ke entrance setelah pertarungan selesai
+    function exitDungeon() {
+        monster = null;
+        isBattleOver = false;
+    }
 </script>
 
+{#if !isBattleOver}
+    <div class="pt-4 text-center flex gap-2 justify-center">
+        <Button onclick={usePotion} variant="secondary" disabled={!$profileStore || $profileStore.healthPotions <= 0}>
+            <FlaskConical class="size-4 mr-2"/> Gunakan Potion ({$profileStore?.healthPotions ?? 0})
+        </Button>
+        <Button onclick={executeAttack} variant="destructive" size="lg">SERANG!</Button>
+    </div>
+{:else}
+    <div class="mt-4 text-center p-4 rounded-lg {battleResult === 'win' ? 'bg-green-500' : 'bg-red-500'}">
+        <h3 class="text-2xl font-bold">{battleResult === 'win' ? 'KEMENANGAN!' : 'KEKALAHAN!'}</h3>
+        <Button onclick={exitDungeon} class="mt-2">Kembali ke Entrance</Button>
+    </div>
+{/if}
 <main class="p-4 md:p-8 max-w-5xl mx-auto">
 	<div class="flex items-center gap-4 mb-8">
 		<Swords class="size-9 text-destructive" />

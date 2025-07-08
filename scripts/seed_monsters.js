@@ -1,15 +1,39 @@
-// Menggunakan sintaksis import ES Module yang modern
+// scripts/seed_monsters.js
+
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-
-// Mengimpor kunci layanan dan data monster
-import serviceAccount from '../serviceAccountKey.json' with { type: 'json' };
 import monstersData from './monsters.json' with { type: 'json' };
 
-// Inisialisasi aplikasi Firebase Admin
-initializeApp({
-  credential: cert(serviceAccount)
-});
+// --- PERUBAHAN DIMULAI DI SINI ---
+
+// Fungsi untuk inisialisasi Firebase Admin
+async function initializeFirebase() {
+	try {
+		// 1. Coba dulu pake serviceAccountKey.json kalo ada
+		const serviceAccount = await import('../serviceAccountKey.json', {
+			assert: { type: 'json' }
+		});
+		initializeApp({
+			credential: cert(serviceAccount.default)
+		});
+		console.log('🔑 Berhasil inisialisasi menggunakan serviceAccountKey.json.');
+	} catch (error) {
+		// 2. Kalo gagal (file nggak ada), pake Application Default Credentials
+		console.log(
+			'⚠️  serviceAccountKey.json tidak ditemukan, mencoba menggunakan kredensial default...'
+		);
+		// ---- TAMBAHKAN INI ----
+		initializeApp({
+			projectId: 'skripsi-gamifikasi-dev'
+		});
+		// ----------------------
+		console.log('🔑 Berhasil inisialisasi menggunakan kredensial default.');
+	}
+}
+
+await initializeFirebase();
+
+// --- PERUBAHAN SELESAI ---
 
 const db = getFirestore();
 const monstersCollection = db.collection('monsters');
