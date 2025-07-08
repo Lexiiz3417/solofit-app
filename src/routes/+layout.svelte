@@ -14,7 +14,7 @@
 	// State untuk menahan tampilan halaman
 	let isReady = $state(false);
 
-	// --- LOGIKA GATEKEEPER BARU YANG BENAR (TANPA get()) ---
+	// --- LOGIKA GATEKEEPER BARU YANG TANGGUH ---
 	$effect(() => {
 		// Di Svelte 5, kita cukup pakai $userStore dan $profileStore di sini.
 		// Effect ini akan otomatis jalan lagi setiap kali nilainya berubah.
@@ -32,7 +32,6 @@
 		}
 
 		// Kondisi 3: Saat kita tahu user login, tapi data profilnya dari Firestore masih dalam perjalanan. Tahan tampilan.
-		// Nilai awal profileStore adalah null, jadi kita tunggu sampai ada isinya.
 		if ($userStore && $profileStore === null) {
 			isReady = false;
 			return;
@@ -54,10 +53,10 @@
 	});
 </script>
 
-<!-- Bagian HTML di bawah ini tidak perlu diubah sama sekali -->
-
+<!-- Toaster untuk notifikasi kecil -->
 <Toaster richColors position="top-center" />
 
+<!-- Navbar Atas (HANYA UNTUK DESKTOP) -->
 <header
 	class="hidden md:flex p-4 bg-white dark:bg-slate-950 border-b dark:border-slate-800 shadow-sm sticky top-0 z-10"
 >
@@ -76,6 +75,7 @@
 	</nav>
 </header>
 
+<!-- Konten Utama Halaman -->
 <main class="pb-20 md:pb-0">
 	{#if isReady}
 		{@render children()}
@@ -86,6 +86,7 @@
 	{/if}
 </main>
 
+<!-- Navbar Bawah (HANYA UNTUK MOBILE & JIKA SUDAH LOGIN) -->
 {#if $userStore}
 	<footer
 		class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t dark:bg-slate-950 dark:border-slate-800 p-2 z-10"
@@ -131,3 +132,4 @@
 	</footer>
 {/if}
 
+<!-- Kita sudah sepakat menghapus SystemNotification, jadi di sini bersih -->

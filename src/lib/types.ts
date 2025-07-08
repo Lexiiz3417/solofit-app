@@ -46,8 +46,9 @@ export interface UserProfile {
 	// --- TAMBAHAN BARU ---
 	gold: number;
 	dungeonKeys: number;
-	dailyKeyAwardedOn?: Timestamp; 
+	dailyKeyAwardedOn?: Timestamp; // Penanda kapan terakhir dapet kunci harian
 }
+
 
 // Tipe untuk hasil transaksi
 export interface TransactionResult {
@@ -67,6 +68,7 @@ export interface Monster {
 	attack: number;
 	defense: number;
 	expReward: number;
+	goldReward: number; // <-- TAMBAHAN YANG KETINGGALAN
 	imageUrl?: string;
-	hp?: number; // HP saat ini, ditambahkan saat pertarungan
+	hp?: number;
 }

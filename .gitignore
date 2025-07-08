@@ -21,3 +21,6 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Kunci rahasia Firebase, jangan di-upload!
+serviceAccountKey.json
