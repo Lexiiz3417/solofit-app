@@ -16,7 +16,6 @@ export interface Quest {
 	finalTarget?: number;
 }
 
-// Tipe untuk data profil user dari Firestore
 export interface UserProfile {
 	email: string;
 	username: string;
@@ -43,6 +42,11 @@ export interface UserProfile {
 	goal: 'build_muscle' | 'endurance' | 'agility';
 	fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
 	commitmentDays: number;
+	
+	// --- TAMBAHAN BARU ---
+	gold: number;
+	dungeonKeys: number;
+	dailyKeyAwardedOn?: Timestamp; 
 }
 
 // Tipe untuk hasil transaksi

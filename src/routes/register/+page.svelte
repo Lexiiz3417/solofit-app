@@ -42,10 +42,15 @@
 					stamina: { level: 0, exp: 0, requiredExp: 150 },
 					agility: { level: 0, exp: 0, requiredExp: 120 }
 				},
-				goal: 'build_muscle', // Ini akan di-update di halaman setup
-				fitnessLevel: 'beginner', // Ini juga
-				commitmentDays: 3, // Ini juga
-				createdAt: serverTimestamp()
+				goal: 'build_muscle',
+				fitnessLevel: 'beginner',
+				commitmentDays: 3,
+				createdAt: serverTimestamp(),
+				
+				// --- TAMBAHAN BARU ---
+				gold: 100, // Modal awal
+				dungeonKeys: 3, // Dapat 3 kunci gratis pas daftar
+				dailyKeyAwardedOn: null // Awalnya null
 			});
 			toast.success('Registrasi Berhasil!', {
 				description: 'Karakter Anda telah dibuat. Mengarahkan ke halaman setup...'

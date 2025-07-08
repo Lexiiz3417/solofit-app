@@ -7,7 +7,7 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card/index.js';
 	import { Progress } from '$lib/components/ui/progress/index.js';
-	import { Swords, User, Heart, Bot, ScrollText, ShieldAlert, PartyPopper, Zap } from 'lucide-svelte';
+	import { Swords, User, Heart, Bot, ScrollText, ShieldAlert, PartyPopper,KeyRound, Zap } from 'lucide-svelte';
 	import {
 		Dialog,
 		DialogContent,
@@ -39,18 +39,36 @@
 	// State untuk dialog notifikasi berantai
 	let isLevelUpDialogOpen = $state(false);
 	let levelUpInfo = $state({ newLevel: 0, pointsGained: 0 });
-	let isMasteryUpDialogOpen = $state(false);
-	let masteryUpInfo = $state({ stat: '', newLevel: 0 });
 	let lastBattleResult = $state<TransactionResult | null>(null);
 
 	// Fungsi untuk memulai pertarungan
 	async function startBattle() {
 		const profile = get(profileStore);
-		if (profile && profile.hp <= 0) {
+		const currentUser = get(userStore);
+
+		if (!profile || !currentUser) return;
+
+		// 1. Cek HP dulu
+		if (profile.hp <= 0) {
 			toast.error('HP kamu habis! Pulihkan dulu gih.');
 			return;
 		}
+
+		// 2. Cek Kunci Dungeon
+		if (profile.dungeonKeys <= 0) {
+			toast.error('Kunci Dungeon tidak cukup!');
+			return;
+		}
+
 		try {
+			// 3. Kurangi Kunci (Sistem "Bayar")
+			const userDocRef = doc(db, 'users', currentUser.uid);
+			await updateDoc(userDocRef, {
+				dungeonKeys: increment(-1)
+			});
+			toast.info('1 Kunci Dungeon telah digunakan.');
+
+			// Ambil monster acak (logika ini tetap sama)
 			const monstersSnapshot = await getDocs(collection(db, 'monsters'));
 			const monsterPool = monstersSnapshot.docs.map((d) => ({
 				...(d.data() as Omit<Monster, 'id'>),
@@ -62,15 +80,12 @@
 			}
 			const randomIndex = Math.floor(Math.random() * monsterPool.length);
 			const randomMonster = monsterPool[randomIndex];
-			monster = {
-				...randomMonster,
-				hp: randomMonster.maxHp
-			};
+			
+			monster = { ...randomMonster, hp: randomMonster.maxHp };
 			battleLog = [`Seekor ${monster.name} liar muncul di hadapanmu!`];
 			isBattleOver = false;
 			battleResult = '';
 			hasAttackedOnce = false;
-			lastBattleResult = null;
 		} catch (error) {
 			console.error('Gagal memulai pertarungan:', error);
 			toast.error('Gagal memasuki dungeon.');
@@ -82,7 +97,7 @@
 		isConfirmationDialogOpen = false;
 		if (isBattleOver || !$userStore || !$profileStore) return;
 		
-		// PERBAIKAN: Buat variabel lokal untuk monster biar TypeScript gak bingung
+		// PERBAIKAN 1: Buat variabel lokal untuk monster biar TypeScript gak bingung
 		const currentMonster = monster;
 		if (!currentMonster) return;
 
@@ -168,16 +183,24 @@
 
 	// Fungsi untuk memulihkan HP
 	async function fullyHeal() {
-		// ... fungsi ini tidak berubah ...
+		const currentUser = get(userStore);
+		const profile = get(profileStore);
+		if (!currentUser || !profile) return;
+		const userDocRef = doc(db, 'users', currentUser.uid);
+		try {
+			await updateDoc(userDocRef, { hp: profile.maxHp });
+			toast.success('HP kamu pulih sepenuhnya! Siap tempur lagi!');
+			monster = null;
+		} catch (error) {
+			console.error('Gagal memulihkan HP:', error);
+			toast.error('Gagal memulihkan HP.');
+		}
 	}
 
-	// PERBAIKAN: Fungsi baru untuk menangani notifikasi berantai
+	// PERBAIKAN 2: Fungsi baru untuk menangani notifikasi berantai
 	function handleLevelUpDialogClose() {
 		isLevelUpDialogOpen = false;
-		if (lastBattleResult?.masteryLeveledUp && lastBattleResult?.statGained) {
-			masteryUpInfo = { stat: lastBattleResult.statGained, newLevel: lastBattleResult.newMasteryLevel };
-			isMasteryUpDialogOpen = true;
-		}
+		// Di sini kita bisa tambahkan logika untuk notifikasi lain jika perlu
 	}
 </script>
 
@@ -191,19 +214,76 @@
 	</div>
 
 	{#if !monster}
-		<div class="text-center mt-16">
-			<Button onclick={startBattle} size="lg">Cari Pertarungan</Button>
+		<div class="text-center mt-16 space-y-4">
+			<!-- TAMPILAN BARU: Tampilkan jumlah kunci -->
+			{#if $profileStore}
+				<div class="flex items-center justify-center gap-2 text-lg">
+					<KeyRound class="size-5 text-yellow-500" />
+					<span class="font-semibold">Kunci Dungeon:</span>
+					<span class="font-bold text-xl">{$profileStore.dungeonKeys}</span>
+				</div>
+			{/if}
+			<!-- Tombol sekarang punya kondisi disabled -->
+			<Button onclick={startBattle} size="lg" disabled={!$profileStore || $profileStore.dungeonKeys <= 0}>
+				Cari Pertarungan
+			</Button>
 		</div>
 	{:else if $profileStore}
-		<!-- Area Pertarungan -->
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-			<!-- ... Panel Player tidak berubah ... -->
+			<!-- Panel Player -->
+			<Card class="order-2 lg:order-1">
+				<CardHeader class="flex flex-row items-center gap-4 space-y-0 pb-2">
+					<User class="size-8 text-blue-600" />
+					<CardTitle>{$profileStore.username}</CardTitle>
+				</CardHeader>
+				<CardContent class="space-y-4">
+					<div class="space-y-1">
+						<div class="flex justify-between items-center">
+							<div class="flex items-center gap-1.5 text-sm font-medium">
+								<Heart class="size-4 text-red-500" />
+								<span>HP</span>
+							</div>
+							<span class="text-sm font-mono text-red-500">{$profileStore.hp} / {$profileStore.maxHp}</span>
+						</div>
+						<Progress
+							value={$profileStore.hp}
+							max={$profileStore.maxHp}
+							class={getHpColorClass($profileStore.hp, $profileStore.maxHp)}
+						/>
+					</div>
+					<div class="text-sm space-y-1 text-gray-600 dark:text-gray-300 pt-2 border-t dark:border-slate-700">
+						<p>Strength: {$profileStore.stats.strength}</p>
+						<p>Agility: {$profileStore.stats.agility}</p>
+						<p>Stamina: {$profileStore.stats.stamina}</p>
+					</div>
+				</CardContent>
+			</Card>
 
 			<!-- Panel Aksi & Monster -->
 			<Card class="order-1 lg:order-2 bg-slate-900 text-white">
-				<!-- ... CardHeader dan stats monster tidak berubah ... -->
+				<CardHeader class="flex flex-row items-center gap-4 space-y-0 pb-2">
+					<Bot class="size-8 text-destructive" />
+					<CardTitle>{monster.name}</CardTitle>
+				</CardHeader>
 				<CardContent class="space-y-4">
-					<!-- ... HP Bar monster tidak berubah ... -->
+					<div class="text-xs flex justify-around border-b border-slate-700 pb-2">
+						<p>Attack: {monster.attack}</p>
+						<p>Defense: {monster.defense}</p>
+					</div>
+					<div class="space-y-1">
+						<div class="flex justify-between items-center">
+							<div class="flex items-center gap-1.5 text-sm font-medium">
+								<Heart class="size-4 text-green-400" />
+								<span>HP</span>
+							</div>
+							<span class="text-sm font-mono text-green-400">{monster.hp ?? 0} / {monster.maxHp}</span>
+						</div>
+						<Progress
+							value={monster.hp ?? 0}
+							max={monster.maxHp}
+							class={getHpColorClass(monster.hp ?? 0, monster.maxHp)}
+						/>
+					</div>
 					{#if !isBattleOver}
 						<div class="pt-4 text-center">
 							<Button onclick={handleAttackClick} variant="destructive" size="lg">SERANG!</Button>
@@ -221,7 +301,19 @@
 				</CardContent>
 			</Card>
 
-			<!-- ... Battle Log tidak berubah ... -->
+			<!-- Battle Log -->
+			<Card class="order-3 h-96 flex flex-col">
+				<CardHeader class="flex flex-row items-center gap-4 space-y-0 pb-2">
+					<ScrollText class="size-8 text-gray-500" />
+					<CardTitle>Battle Log</CardTitle>
+				</CardHeader>
+				<!-- PERUBAHAN DI SINI: Membuat kontennya bisa di-scroll -->
+				<CardContent class="flex-1 overflow-y-auto text-sm font-mono space-y-2 pr-2">
+					{#each battleLog as log}
+						<p><span class="text-gray-500 mr-2">»</span>{log}</p>
+					{/each}
+				</CardContent>
+			</Card>
 		</div>
 	{/if}
 
@@ -229,11 +321,11 @@
 	<Dialog bind:open={isConfirmationDialogOpen}>
 		<DialogContent class="dark:bg-slate-950 dark:border-blue-500/50 shadow-lg dark:shadow-blue-500/20">
 			<DialogHeader>
-				<!-- PERBAIKAN: Desain konsisten -->
 				<DialogTitle class="flex items-center justify-center gap-2">
 					<ShieldAlert class="size-5 text-yellow-500" />
 					<span>[ PERINGATAN SISTEM ]</span>
 				</DialogTitle>
+				<!-- PERBAIKAN 3: Tambah class text-center -->
 				<DialogDescription class="pt-4 text-md text-center text-slate-600 dark:text-slate-300">
 					Sekali pertarungan dimulai, tidak ada jalan untuk lari. Kamu harus bertarung sampai salah
 					satu pihak tumbang.
@@ -247,7 +339,7 @@
 		</DialogContent>
 	</Dialog>
 
-	<!-- Dialog Level Up (akan kita buat jadi komponen nanti) -->
+	<!-- Dialog Level Up -->
 	<Dialog bind:open={isLevelUpDialogOpen}>
 		<DialogContent class="dark:bg-slate-950 dark:border-blue-500/50 shadow-lg dark:shadow-blue-500/20">
 			<DialogHeader class="text-center">
@@ -255,6 +347,7 @@
 					<PartyPopper class="size-6 text-yellow-500" />
 					<span>[ LEVEL UP ]</span>
 				</DialogTitle>
+				<!-- PERBAIKAN 3: Tambah class text-center -->
 				<DialogDescription class="text-md !mt-4 text-center dark:text-slate-300">
 					Kerja kerasmu terbayar, Hunter! Kamu telah mencapai:
 					<p class="text-4xl font-bold text-blue-600 my-4">LEVEL {levelUpInfo.newLevel}</p>
