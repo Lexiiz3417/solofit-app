@@ -40,7 +40,9 @@
       </p>
     </Card.Content>
     <Card.Footer>
-      <Button>Lihat & Lanjutkan Latihan</Button>
+      <a href="/workout" class="w-full">
+        <Button class="w-full">Lihat & Lanjutkan Latihan</Button>
+      </a>
     </Card.Footer>
   </Card.Root>
 </div>

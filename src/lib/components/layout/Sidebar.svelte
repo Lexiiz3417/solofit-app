@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { LayoutDashboard, Swords, Library, Store, User, PanelLeftClose, PanelRightClose } from 'lucide-svelte';
+	// Pastikan baris ini juga sudah benar dan lengkap
+	import { LayoutDashboard, Swords, Library, Store, User, Settings, PanelLeftClose, PanelRightClose } from 'lucide-svelte';
 	import { isSidebarOpen } from '$lib/stores';
 	import { Button } from '$lib/components/ui/button';
 
@@ -68,6 +69,16 @@
 		>
 			<User class="h-5 w-5" />
 			<span class:hidden={!$isSidebarOpen}>Profile</span>
+		</a>
+		<a
+		href="/settings"
+		class="flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary"
+		class:bg-muted={$page.url.pathname === '/settings'}
+		class:text-primary={$page.url.pathname === '/settings'}
+        class:justify-center={!$isSidebarOpen}
+	>
+		<Settings class="h-5 w-5" />
+		<span class:hidden={!$isSidebarOpen}>Settings</span>
 		</a>
 	</nav>
 
