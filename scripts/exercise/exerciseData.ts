@@ -1,4 +1,4 @@
-// /src/lib/data/exerciseData.ts
+// /srcipts/exercise/exerciseData.ts
 
 import type { Exercise } from "../../src/lib/game/types";
 

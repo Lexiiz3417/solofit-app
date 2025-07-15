@@ -1,8 +1,8 @@
 // src/lib/services/userService.ts
-
 import { db } from '$lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
+// Impor tipe WorkoutResult seperti biasa
 import type { WorkoutResult } from '$lib/game/progression';
 
 // --- INTERFACES ---

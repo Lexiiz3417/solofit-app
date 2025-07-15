@@ -1,64 +1,84 @@
 <script lang="ts">
-	// --- IMPORTS ---
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Button } from '$lib/components/ui/button';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
-	// FIX: Hapus impor 'MasteryStat' karena sudah tidak diekspor
-	import { processWorkoutResult, type WorkoutExercise, type WorkoutResult } from '$lib/game/progression';
-	import { saveWorkoutResult, getUserProfile } from '$lib/services/userService';
+	import { Progress } from '$lib/components/ui/progress';
+	import { processWorkoutResult, type WorkoutResult } from '$lib/game/progression';
+	import { saveWorkoutResult, getUserProfile, type UserProfile } from '$lib/services/userService';
+	import { getWorkoutPlan, type Exercise } from '$lib/services/exerciseService';
 	import { user, userProfile } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
-	import { CircleCheck, Award } from 'lucide-svelte';
-
-	// FIX: Definisikan tipe untuk mock data kita secara lokal agar cocok
-	interface MockExercise {
-		id: string;
-		name: string;
-		sets: number;
-		reps: number;
-		epPerRep: number;
-		masteryStat: 'STR' | 'END' | 'AGI'; 
-		masteryExpPerRep: number;
-		completedSets: (number | string)[];
-	}
-
-	// Terapkan tipe tersebut ke workoutPlan
-	const workoutPlan: MockExercise[] = [
-		{ id: 'ex1', name: 'Push-up', sets: 3, reps: 10, epPerRep: 1, masteryStat: 'STR', masteryExpPerRep: 1, completedSets: Array(3).fill('') },
-		{ id: 'ex2', name: 'Bodyweight Squat', sets: 3, reps: 15, epPerRep: 0.8, masteryStat: 'END', masteryExpPerRep: 1, completedSets: Array(3).fill('') },
-		{ id: 'ex3', name: 'Plank', sets: 3, reps: 30, epPerRep: 0.5, masteryStat: 'END', masteryExpPerRep: 0.5, completedSets: Array(3).fill('') }
-	];
+	import { CircleCheck, Award, Plus } from 'lucide-svelte';
+	import { onMount } from 'svelte';
 
 	// --- STATE MANAGEMENT ---
+	let workoutLog: {
+		exercise: Exercise;
+		repsCompleted: number;
+		repsToAdd: string;
+		targetReps: number;
+	}[] = [];
+
 	let isLoading = false;
+	let isPageLoading = true;
 	let showRewardModal = false;
 	let showLevelUpModal = false;
 	let summary: WorkoutResult | null = null;
 
+	onMount(async () => {
+		const plan = await getWorkoutPlan();
+		// TODO: Nanti ambil dailyProgress dari backend
+		const dailyProgress: { [key: string]: number } = {}; 
+
+		workoutLog = plan.map((ex) => ({
+			exercise: ex,
+			repsCompleted: dailyProgress[ex.id] || 0,
+			repsToAdd: '',
+			targetReps: 50 // Target bohongan untuk progress bar
+		}));
+		isPageLoading = false;
+	});
+
+	function handleAddProgress(exerciseIndex: number) {
+		const log = workoutLog[exerciseIndex];
+		const reps = parseInt(log.repsToAdd);
+
+		if (isNaN(reps) || reps <= 0) {
+			toast.error('Masukkan jumlah progres yang valid.');
+			return;
+		}
+
+		// TODO: Panggil fungsi `addWorkoutProgress` dari backend di sini
+		log.repsCompleted += reps;
+		log.repsToAdd = '';
+		toast.success(`+${reps} ${log.exercise.unit} untuk ${log.exercise.name} berhasil ditambahkan!`);
+
+		// FIX: "Colek" Svelte agar sadar ada perubahan pada array
+		workoutLog = [...workoutLog];
+	}
+
 	async function finishWorkout() {
 		if (!$user || !$userProfile) {
-			toast.error('Sesi atau profil tidak valid. Silakan login ulang.');
+			toast.error('Sesi tidak valid.');
 			return;
 		}
 		isLoading = true;
 
-		// Tipe data di sini sekarang aman karena workoutPlan sudah memiliki tipe yang benar
-		const workoutData: WorkoutExercise[] = workoutPlan.map((ex) => ({
-			id: ex.id,
-			repsCompleted: ex.completedSets.reduce((acc, current) => acc + (Number(current) || 0), 0),
-			epPerRep: ex.epPerRep,
-			masteryStat: ex.masteryStat,
-			masteryExpPerRep: ex.masteryExpPerRep
+		const workoutData = workoutLog.map((log) => ({
+			id: log.exercise.id,
+			repsCompleted: log.repsCompleted,
+			epPerRep: log.exercise.epCostPerUnit,
+			masteryStat: log.exercise.masteryStat,
+			masteryExpPerRep: log.exercise.masteryExpPerUnit
 		}));
 
 		const result = processWorkoutResult($userProfile, workoutData);
 		summary = result;
-		
-        // Logika pengecekan tetap sama
-		if (result.expGained > 0 || result.totalEpUsed >= 80) {
+
+		if (result.totalEpUsed >= 80) {
 			const saveSuccess = await saveWorkoutResult($user.uid, result);
 			if (saveSuccess) {
 				showRewardModal = true;
@@ -67,9 +87,7 @@
 			}
 		} else {
 			toast.error('Quest Gagal', {
-				description: `Target minimal 80 EP tidak tercapai. EP yang kamu gunakan baru ${Math.round(
-					result.totalEpUsed
-				)}.`
+				description: `Target minimal 80 EP tidak tercapai.`
 			});
 		}
 		isLoading = false;
@@ -87,7 +105,9 @@
 	async function refreshProfileAndGoHome() {
 		if ($user) {
 			const updatedProfile = await getUserProfile($user.uid);
-			$userProfile = updatedProfile;
+			if (updatedProfile) {
+				$userProfile = updatedProfile;
+			}
 		}
 		goto('/dashboard');
 	}
@@ -95,67 +115,60 @@
 
 <div class="flex flex-col gap-6">
 	<div>
-		<h1 class="text-2xl font-bold">Workout of the Day</h1>
-		<p class="text-muted-foreground">Selesaikan latihan untuk mendapatkan EP dan EXP.</p>
+		<h1 class="text-2xl font-bold">Workout Log</h1>
+		<p class="text-muted-foreground">Catat dan cicil progres latihanmu di sini.</p>
 	</div>
 
-	<div class="space-y-4">
-		{#each workoutPlan as exercise, i (exercise.id)}
-			<Card.Root>
-				<Card.Header>
-					<Card.Title>{exercise.name}</Card.Title>
-					<Card.Description>Target: {exercise.sets} set x {exercise.reps} repetisi</Card.Description>
-				</Card.Header>
-				<Card.Content class="grid grid-cols-2 md:grid-cols-4 gap-4">
-					{#each { length: exercise.sets } as _, setIndex}
-						<div class="grid gap-1.5">
-							<Label for="ex-{i}-set-{setIndex}">Set {setIndex + 1}</Label>
-							<Input
-								bind:value={exercise.completedSets[setIndex]}
-								type="number"
-								id="ex-{i}-set-{setIndex}"
-								placeholder="Reps"
-							/>
+	{#if isPageLoading}
+		<p>Memuat rencana latihan...</p>
+	{:else}
+		<div class="space-y-6">
+			{#each workoutLog as log, i (log.exercise.id)}
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>{log.exercise.name}</Card.Title>
+						<Card.Description>{log.exercise.description}</Card.Description>
+					</Card.Header>
+					<Card.Content class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+						<div class="space-y-2">
+							<div class="flex justify-between items-center">
+								<p class="text-sm text-muted-foreground">
+									Progres Hari Ini: <span class="font-bold text-foreground">{log.repsCompleted}</span> / {log.targetReps}
+									<span class="capitalize">{log.exercise.unit}</span>
+								</p>
+							</div>
+							<Progress value={(log.repsCompleted / log.targetReps) * 100} />
 						</div>
-					{/each}
-				</Card.Content>
-			</Card.Root>
-		{/each}
-	</div>
+						<div class="space-y-1.5">
+							<Label for={`add-reps-${i}`}>Tambah Progres</Label>
+							<div class="flex items-center space-x-2">
+								<Input
+									bind:value={log.repsToAdd}
+									type="number"
+									id={`add-reps-${i}`}
+									placeholder="e.g., 10"
+									class="max-w-[120px]"
+								/>
+								<Button onclick={() => handleAddProgress(i)}>
+									<Plus class="mr-2 h-4 w-4" /> Tambah
+								</Button>
+							</div>
+						</div>
+					</Card.Content>
+				</Card.Root>
+			{/each}
+		</div>
 
-	<div class="flex justify-end">
-		<Button onclick={finishWorkout} size="lg" disabled={isLoading}>
-			{#if isLoading}
-				<svg
-					class="animate-spin -ml-1 mr-3 h-5 w-5"
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-				>
-					<circle
-						class="opacity-25"
-						cx="12"
-						cy="12"
-						r="10"
-						stroke="currentColor"
-						stroke-width="4"
-					></circle>
-					<path
-						class="opacity-75"
-						fill="currentColor"
-						d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-					></path>
-				</svg>
-				Processing...
-			{:else}
-				Selesaikan Latihan
-			{/if}
-		</Button>
-	</div>
+		<div class="flex justify-end mt-4">
+			<Button onclick={finishWorkout} size="lg" disabled={isLoading}>
+				{#if isLoading} Processing... {:else} Selesaikan & Hitung Reward {/if}
+			</Button>
+		</div>
+	{/if}
 </div>
 
 <AlertDialog.Root bind:open={showRewardModal}>
-	<AlertDialog.Content>
+    <AlertDialog.Content>
 		<AlertDialog.Header class="items-center text-center">
 			<CircleCheck class="w-16 h-16 text-green-500 mb-2" />
 			<AlertDialog.Title class="text-2xl">Workout Complete!</AlertDialog.Title>
@@ -187,7 +200,7 @@
 					<span class="font-bold text-sky-500">+{summary.keysGained}</span>
 				</p>
 			{/if}
-			{#if summary && summary.masteryExpGained && Object.values(summary.masteryExpGained).some(v => v > 0)}
+			{#if summary && summary.masteryExpGained && Object.values(summary.masteryExpGained).some((v) => v > 0)}
 				<hr class="border-dashed" />
 				<p class="text-sm font-bold text-muted-foreground pt-2">Mastery EXP Gained:</p>
 				<div class="pl-2">
