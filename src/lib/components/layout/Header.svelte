@@ -1,7 +1,8 @@
 <script lang="ts">
     import { Shield, Star, Zap, Coins } from 'lucide-svelte';
     import ThemeToggle from '$lib/components/interactive/ThemeToggle.svelte';
-    import { userProfile } from '$lib/stores'; // <-- Impor profile store
+    import { userProfile } from '$lib/stores'; 
+    import { remainingEp } from '$lib/stores';
 </script>
 
 <header class="flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
@@ -30,7 +31,7 @@
                 </div>
                 <div class="flex items-center gap-2" title="Energy Points (EP)">
                     <Zap class="h-5 w-5 text-sky-400" />
-                    <span class="font-semibold">--/--</span>
+                    <span class="font-semibold">{$remainingEp}/100</span>
                 </div>
             </div>
         </div>

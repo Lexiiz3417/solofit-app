@@ -88,12 +88,16 @@ export async function updateUserProfile(uid: string, newData: { [key: string]: a
 
 export async function saveWorkoutResult(uid: string, result: WorkoutResult): Promise<boolean> {
     const userRef = doc(db, 'users', uid);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const progressRef = doc(db, `daily_progress/${uid}/workouts/${todayStr}`);
     
     try {
         const updatePayload: { [key: string]: any } = {
             exp: increment(result.expGained),
             gold: increment(result.goldGained),
             dungeonKeys: increment(result.keysGained),
+            // TAMBAHKAN PERINTAH BARU DI SINI
+            streak: increment(1) 
         };
 
         for (const key in result.masteryExpGained) {
@@ -105,8 +109,15 @@ export async function saveWorkoutResult(uid: string, result: WorkoutResult): Pro
             updatePayload.unallocatedStatPoints = increment(result.unallocatedStatPointsGained);
         }
 
-        await updateDoc(userRef, updatePayload);
+        // Jalankan kedua update secara bersamaan untuk efisiensi
+        await Promise.all([
+            updateDoc(userRef, updatePayload),
+            updateDoc(progressRef, { questCompleted: true })
+        ]);
+        
+        console.log('Workout result saved and streak incremented for user:', uid);
         return true;
+
     } catch (error) {
         console.error("Error saving workout result:", error);
         return false;

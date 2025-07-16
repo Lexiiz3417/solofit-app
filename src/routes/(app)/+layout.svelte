@@ -5,28 +5,32 @@
 	import BottomNav from '$lib/components/layout/BottomNav.svelte';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
-	import { onMount } from 'svelte';
-    import { auth } from '$lib/firebase';
-    import { onAuthStateChanged } from 'firebase/auth';
-    import { user, userProfile } from '$lib/stores'; // <-- Tambah userProfile
-    import { goto } from '$app/navigation';
-    import { getUserProfile } from '$lib/services/userService'; // <-- Impor fungsi get profile
+    import { onMount } from 'svelte';
+	import { auth } from '$lib/firebase';
+	import { onAuthStateChanged } from 'firebase/auth';
+	import { user, userProfile } from '$lib/stores';
+	import { goto } from '$app/navigation';
+	import { getUserProfile } from '$lib/services/userService';
 
-    onMount(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-                $user = firebaseUser;
-                // Ambil profil dari Firestore dan simpan ke store
-                const profile = await getUserProfile(firebaseUser.uid);
-                $userProfile = profile;
-            } else {
-                $user = null;
-                $userProfile = null; // Kosongkan juga profil store
-                // goto('/login');
-            }
-        });
-        return () => unsubscribe();
-    });
+	onMount(() => {
+		// Listener ini akan selalu memantau status login
+		const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+			if (firebaseUser) {
+				// Jika ada pengguna, isi store kita
+				const profile = await getUserProfile(firebaseUser.uid);
+				user.set(firebaseUser);
+				userProfile.set(profile);
+			} else {
+				// Jika tidak ada, kosongkan store dan tendang ke halaman login
+				user.set(null);
+				userProfile.set(null);
+				goto('/login');
+			}
+		});
+
+		// Membersihkan listener saat komponen tidak lagi digunakan
+		return () => unsubscribe();
+	});
 </script>
 
 <ModeWatcher />

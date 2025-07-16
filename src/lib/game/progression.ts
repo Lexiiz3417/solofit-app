@@ -9,7 +9,7 @@ export interface WorkoutExercise {
     repsCompleted: number;
     epPerRep: number;
     masteryStat: 'STR' | 'END' | 'AGI';
-    masteryExpPerRep: number;
+    masteryExpPerUnit: number;
 }
 
 export interface WorkoutResult {
@@ -53,7 +53,7 @@ export function processWorkoutResult(
     for (const exercise of workoutData) {
         totalEpUsed += exercise.repsCompleted * exercise.epPerRep;
         const masteryKey = `masteryExp_${exercise.masteryStat}`;
-        masteryExpUpdates[masteryKey] = (masteryExpUpdates[masteryKey] || 0) + (exercise.repsCompleted * exercise.masteryExpPerRep);
+        masteryExpUpdates[masteryKey] = (masteryExpUpdates[masteryKey] || 0) + (exercise.repsCompleted * exercise.masteryExpPerUnit);
     }
 
     let expGained = 0;

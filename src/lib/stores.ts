@@ -18,3 +18,17 @@ export const user = writable<User | null>(null);
  * Menyimpan data profil lengkap dari Firestore.
  */
 export const userProfile = writable<UserProfile | null>(null);
+
+/**
+ * Mengontrol tipe hari saat ini untuk ditampilkan di Dashboard.
+ * Bisa 'workout' atau 'rest'.
+ */
+export const currentDayType = writable<'workout' | 'rest'>('workout');
+
+/**
+ * Menyimpan status apakah quest harian sudah selesai atau belum.
+ * Akan di-reset setiap hari (logika masa depan).
+ */
+export const dailyQuestCompleted = writable(false);
+
+export const remainingEp = writable(100);

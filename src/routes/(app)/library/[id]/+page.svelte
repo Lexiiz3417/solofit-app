@@ -4,21 +4,33 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { ArrowLeft } from 'lucide-svelte';
-	import { toast } from 'svelte-sonner'; // <-- Import toast
+	import { toast } from 'svelte-sonner';
+	// --- AWAL BAGIAN YANG DIGANTI ---
+	import { updateDailyTaskStatus } from '$lib/services/dailyProgressService';
+	import { user } from '$lib/stores';
+	// --- AKHIR BAGIAN YANG DIGANTI ---
 
 	export let data: PageData;
 	const { article } = data;
 
-	let userInput = ''; // <-- Variabel untuk menampung input pengguna
+	let userInput = '';
 
-	function handleClaimReward() {
-		// Kita bandingkan jawaban pengguna (dibuat huruf kecil) dengan kata kunci
+	async function handleClaimReward() {
+		// --- AWAL BAGIAN YANG DIGANTI ---
+		if (!$user) {
+			toast.error('Sesi pengguna tidak valid.');
+			return;
+		}
+		// --- AKHIR BAGIAN YANG DIGANTI ---
+
 		if (userInput.toLowerCase().trim() === article.keyword.toLowerCase()) {
-			// Jika benar, tampilkan notifikasi sukses
 			toast.success(`Benar! Kamu mendapatkan +${article.int_exp_reward} INT EXP.`);
+			
+			// --- TAMBAHAN BARU: Catat penyelesaian tugas 'reading' ---
+			await updateDailyTaskStatus($user.uid, 'reading', true);
+
 			// TODO: Tambahkan logika untuk update stat INT di Firebase
 		} else {
-			// Jika salah, tampilkan notifikasi error
 			toast.error('Kata kunci salah. Coba baca lagi artikelnya dengan teliti!');
 		}
 	}

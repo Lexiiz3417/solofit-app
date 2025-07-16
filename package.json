@@ -12,13 +12,14 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
-		"db:seed:exercises": "npx tsx scripts/exercise/seed.ts"
+		"db:seed:exercises": "npx tsx scripts/exercise/seed.ts",
+    	"db:seed:stretches": "npx tsx scripts/stretches/seed.ts"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
 		"@eslint/js": "^9.18.0",
 		"@internationalized/date": "^3.8.2",
-		"@lucide/svelte": "^0.525.0",
+		"@lucide/svelte": "^0.515.0",
 		"@sveltejs/adapter-auto": "^6.0.0",
 		"@sveltejs/kit": "^2.22.0",
 		"@sveltejs/vite-plugin-svelte": "^6.0.0",

@@ -1,4 +1,5 @@
 <script lang="ts">
+	// --- IMPORTS ---
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -8,7 +9,8 @@
 	import { processWorkoutResult, type WorkoutResult } from '$lib/game/progression';
 	import { saveWorkoutResult, getUserProfile, type UserProfile } from '$lib/services/userService';
 	import { getWorkoutPlan, type Exercise } from '$lib/services/exerciseService';
-	import { user, userProfile } from '$lib/stores';
+	import { getDailyProgress, addWorkoutProgress } from '$lib/services/dailyProgressService';
+	import { user, userProfile, dailyQuestCompleted, remainingEp as remainingEpStore } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { CircleCheck, Award, Plus } from 'lucide-svelte';
@@ -23,74 +25,92 @@
 	}[] = [];
 
 	let isLoading = false;
+	let isAddingProgress = false;
 	let isPageLoading = true;
 	let showRewardModal = false;
 	let showLevelUpModal = false;
 	let summary: WorkoutResult | null = null;
+	let totalEpUsed = 0;
 
-	onMount(async () => {
-		const plan = await getWorkoutPlan();
-		// TODO: Nanti ambil dailyProgress dari backend
-		const dailyProgress: { [key: string]: number } = {}; 
+	// --- REACTIVE STATEMENTS ---
+	$: $remainingEpStore = 100 - totalEpUsed;
 
-		workoutLog = plan.map((ex) => ({
-			exercise: ex,
-			repsCompleted: dailyProgress[ex.id] || 0,
-			repsToAdd: '',
-			targetReps: 50 // Target bohongan untuk progress bar
-		}));
-		isPageLoading = false;
-	});
+	// --- LOGIC ---
+	$: if ($user && isPageLoading) {
+		loadWorkoutData($user.uid);
+	}
 
-	function handleAddProgress(exerciseIndex: number) {
-		const log = workoutLog[exerciseIndex];
+	async function loadWorkoutData(uid: string) {
+		isPageLoading = true;
+		try {
+			const [planData, progressData] = await Promise.all([getWorkoutPlan(), getDailyProgress(uid)]);
+
+			totalEpUsed = Object.entries(progressData.progress).reduce((acc, [exerciseId, reps]) => {
+				const exercise = planData.find((ex) => ex.id === exerciseId);
+				return acc + reps * (exercise?.epCostPerUnit || 0);
+			}, 0);
+
+			workoutLog = planData.map((ex) => ({
+				exercise: ex,
+				repsCompleted: progressData.progress[ex.id] || 0,
+				repsToAdd: '',
+				targetReps: 50
+			}));
+		} catch (error: any) {
+			toast.error('Gagal memuat data latihan.', { description: error.message });
+		} finally {
+			isPageLoading = false;
+		}
+	}
+
+	async function handleAddProgress(log: (typeof workoutLog)[0]) {
+		if (!$user) return;
 		const reps = parseInt(log.repsToAdd);
-
 		if (isNaN(reps) || reps <= 0) {
 			toast.error('Masukkan jumlah progres yang valid.');
 			return;
 		}
 
-		// TODO: Panggil fungsi `addWorkoutProgress` dari backend di sini
-		log.repsCompleted += reps;
-		log.repsToAdd = '';
-		toast.success(`+${reps} ${log.exercise.unit} untuk ${log.exercise.name} berhasil ditambahkan!`);
-
-		// FIX: "Colek" Svelte agar sadar ada perubahan pada array
-		workoutLog = [...workoutLog];
-	}
-
-	async function finishWorkout() {
-		if (!$user || !$userProfile) {
-			toast.error('Sesi tidak valid.');
+		const epCost = reps * log.exercise.epCostPerUnit;
+		if (epCost > $remainingEpStore) {
+			toast.error('EP tidak cukup!');
 			return;
 		}
-		isLoading = true;
 
+		isAddingProgress = true;
+		const success = await addWorkoutProgress($user.uid, log.exercise.id, reps);
+		if (success) {
+			const epSebelumDitambah = totalEpUsed;
+			log.repsCompleted += reps;
+			totalEpUsed += epCost;
+			log.repsToAdd = '';
+			toast.success(`+${reps} ${log.exercise.unit} dicatat!`);
+			workoutLog = [...workoutLog];
+
+			if (totalEpUsed >= 80 && epSebelumDitambah < 80) {
+				finishAndSaveWorkout();
+			}
+		} else {
+			toast.error('Gagal mencatat progres.');
+		}
+		isAddingProgress = false;
+	}
+
+	async function finishAndSaveWorkout() {
+		if (!$user || !$userProfile) return;
+		isLoading = true;
 		const workoutData = workoutLog.map((log) => ({
 			id: log.exercise.id,
 			repsCompleted: log.repsCompleted,
 			epPerRep: log.exercise.epCostPerUnit,
 			masteryStat: log.exercise.masteryStat,
-			masteryExpPerRep: log.exercise.masteryExpPerUnit
+			masteryExpPerUnit: log.exercise.masteryExpPerUnit
 		}));
-
 		const result = processWorkoutResult($userProfile, workoutData);
 		summary = result;
-
-		if (result.totalEpUsed >= 80) {
-			const saveSuccess = await saveWorkoutResult($user.uid, result);
-			if (saveSuccess) {
-				showRewardModal = true;
-			} else {
-				toast.error('Gagal menyimpan progres ke server.');
-			}
-		} else {
-			toast.error('Quest Gagal', {
-				description: `Target minimal 80 EP tidak tercapai.`
-			});
-		}
-		isLoading = false;
+		await saveWorkoutResult($user.uid, result);
+		isLoading = false; // Hentikan loading sebelum tampilkan modal
+		showRewardModal = true;
 	}
 
 	function handleRewardModalClose() {
@@ -109,7 +129,8 @@
 				$userProfile = updatedProfile;
 			}
 		}
-		goto('/dashboard');
+		$dailyQuestCompleted = true;
+		goto('/');
 	}
 </script>
 
@@ -131,13 +152,13 @@
 					</Card.Header>
 					<Card.Content class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
 						<div class="space-y-2">
-							<div class="flex justify-between items-center">
-								<p class="text-sm text-muted-foreground">
-									Progres Hari Ini: <span class="font-bold text-foreground">{log.repsCompleted}</span> / {log.targetReps}
-									<span class="capitalize">{log.exercise.unit}</span>
-								</p>
-							</div>
-							<Progress value={(log.repsCompleted / log.targetReps) * 100} />
+							<p class="text-sm text-muted-foreground">
+								Progres Hari Ini: <span class="font-bold text-foreground"
+									>{log.repsCompleted}</span
+								> / {log.targetReps}
+								<span class="capitalize">{log.exercise.unit}</span>
+							</p>
+							<Progress value={(log.repsCompleted / log.targetReps) * 100} class="mt-2" />
 						</div>
 						<div class="space-y-1.5">
 							<Label for={`add-reps-${i}`}>Tambah Progres</Label>
@@ -148,8 +169,9 @@
 									id={`add-reps-${i}`}
 									placeholder="e.g., 10"
 									class="max-w-[120px]"
+									disabled={isAddingProgress}
 								/>
-								<Button onclick={() => handleAddProgress(i)}>
+								<Button onclick={() => handleAddProgress(log)} disabled={isAddingProgress}>
 									<Plus class="mr-2 h-4 w-4" /> Tambah
 								</Button>
 							</div>
@@ -158,17 +180,11 @@
 				</Card.Root>
 			{/each}
 		</div>
-
-		<div class="flex justify-end mt-4">
-			<Button onclick={finishWorkout} size="lg" disabled={isLoading}>
-				{#if isLoading} Processing... {:else} Selesaikan & Hitung Reward {/if}
-			</Button>
-		</div>
-	{/if}
+		{/if}
 </div>
 
 <AlertDialog.Root bind:open={showRewardModal}>
-    <AlertDialog.Content>
+	<AlertDialog.Content>
 		<AlertDialog.Header class="items-center text-center">
 			<CircleCheck class="w-16 h-16 text-green-500 mb-2" />
 			<AlertDialog.Title class="text-2xl">Workout Complete!</AlertDialog.Title>
