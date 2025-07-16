@@ -4,25 +4,29 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Progress } from '$lib/components/ui/progress';
 	import { Checkbox } from '$lib/components/ui/checkbox';
-	import { user, userProfile, currentDayType, dailyQuestCompleted, remainingEp as remainingEpStore } from '$lib/stores';
+	import { user, userProfile, currentDayType, dailyQuestCompleted } from '$lib/stores';
 	import { Label } from '$lib/components/ui/label';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
 	import { getDailyProgress, completeRestDayQuest } from '$lib/services/dailyProgressService';
-	import { getWorkoutPlan, type Exercise } from '$lib/services/exerciseService';
+	import { getWorkoutPlan } from '$lib/services/exerciseService';
 	import { CheckCircle2 } from 'lucide-svelte';
 
 	// --- STATE MANAGEMENT ---
 	let isPageLoading = true;
-	let isSubmittingRestQuest = false;
-
-	// --- REACTIVE STATEMENTS ---
-	let totalEpUsed = 0;
-	let remainingEp = 100;
 	let stretchingDone = false;
 	let readingDone = false;
+	let isSubmittingRestQuest = false;
+	let totalEpUsed = 0;
+
+	// --- REACTIVE STATEMENTS ---
+	$: remainingEp = 100 - totalEpUsed;
 
 	// --- LOGIC ---
+	$: if ($user && isPageLoading) {
+		loadDailyData($user.uid);
+	}
+
 	async function loadDailyData(uid: string) {
 		isPageLoading = true;
 		try {
@@ -31,21 +35,15 @@
 				getWorkoutPlan()
 			]);
 
-			// Update store global berdasarkan data dari DB
-			$dailyQuestCompleted = progressData.questCompleted;
+			dailyQuestCompleted.set(progressData.questCompleted);
 
-			// Hitung EP yang sudah digunakan
 			totalEpUsed = Object.entries(progressData.progress).reduce((acc, [exerciseId, reps]) => {
 				const exercise = planData.find((ex) => ex.id === exerciseId);
-				return acc + (reps * (exercise?.epCostPerUnit || 0));
+				return acc + reps * (exercise?.epCostPerUnit || 0);
 			}, 0);
-			remainingEp = 100 - totalEpUsed;
-			$remainingEpStore = remainingEp;
-			
-			// Update status checklist
+
 			stretchingDone = progressData.tasksCompleted?.stretching || false;
 			readingDone = progressData.tasksCompleted?.reading || false;
-
 		} catch (error: any) {
 			toast.error('Gagal memuat data misi harian.', { description: error.message });
 		} finally {
@@ -53,18 +51,14 @@
 		}
 	}
 
-	$: if ($user && isPageLoading) {
-		loadDailyData($user.uid);
-	}
-
 	async function handleFinishRestDay() {
-		if (!$user) { return; }
+		if (!$user) return;
 		isSubmittingRestQuest = true;
 		const success = await completeRestDayQuest($user.uid);
 		if (success) {
 			toast.success('Quest Istirahat Selesai!');
-			$dailyQuestCompleted = true; // Langsung update UI
-			if ($userProfile) $userProfile.streak += 1; // Optimistic update streak
+			dailyQuestCompleted.set(true);
+			if ($userProfile) $userProfile.streak += 1;
 		} else {
 			toast.error('Gagal menyelesaikan quest.');
 		}
@@ -89,8 +83,7 @@
 				<CheckCircle2 class="w-16 h-16 text-green-500" />
 				<h2 class="text-xl font-semibold">Misi Harian Telah Selesai!</h2>
 				<p class="text-muted-foreground">
-					Kerja bagus, Hunter. Kamu telah menyelesaikan tugasmu hari ini. <br />
-					Kembali lagi besok untuk tantangan berikutnya!
+					Kerja bagus, Hunter. Kembali lagi besok untuk tantangan berikutnya!
 				</p>
 			</Card.Content>
 		</Card.Root>
@@ -101,14 +94,14 @@
 			<Card.Header>
 				<Card.Title>Workout Day Quest</Card.Title>
 				<Card.Description>
-					Gunakan minimal <strong>80 EP</strong> untuk menyelesaikan quest hari ini dan dapatkan reward.
+					Gunakan minimal <strong>80 EP</strong> untuk menyelesaikan quest hari ini.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content class="space-y-4">
 				<div>
 					<div class="flex justify-between mb-1">
 						<span class="text-sm font-medium text-primary">Sisa Energy Points (EP)</span>
-						<span class="text-sm font-medium">{Math.max(0, remainingEp)} / 100</span>
+						<span class="text-sm font-medium">{remainingEp.toFixed(0)} / 100</span>
 					</div>
 					<Progress value={totalEpUsed} />
 				</div>

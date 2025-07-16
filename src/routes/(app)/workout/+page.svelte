@@ -1,5 +1,4 @@
 <script lang="ts">
-	// --- IMPORTS ---
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -7,16 +6,15 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Progress } from '$lib/components/ui/progress';
 	import { processWorkoutResult, type WorkoutResult } from '$lib/game/progression';
-	import { saveWorkoutResult, getUserProfile, type UserProfile } from '$lib/services/userService';
+	import { saveWorkoutResult, getUserProfile } from '$lib/services/userService';
 	import { getWorkoutPlan, type Exercise } from '$lib/services/exerciseService';
 	import { getDailyProgress, addWorkoutProgress } from '$lib/services/dailyProgressService';
-	import { user, userProfile, dailyQuestCompleted, remainingEp as remainingEpStore } from '$lib/stores';
+	import { user, userProfile, dailyQuestCompleted } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { CircleCheck, Award, Plus } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
-	// --- STATE MANAGEMENT ---
 	let workoutLog: {
 		exercise: Exercise;
 		repsCompleted: number;
@@ -31,25 +29,21 @@
 	let showLevelUpModal = false;
 	let summary: WorkoutResult | null = null;
 	let totalEpUsed = 0;
+	let remainingEp = 100;
 
-	// --- REACTIVE STATEMENTS ---
-	$: $remainingEpStore = 100 - totalEpUsed;
-
-	// --- LOGIC ---
-	$: if ($user && isPageLoading) {
-		loadWorkoutData($user.uid);
-	}
-
-	async function loadWorkoutData(uid: string) {
+	onMount(async () => {
+		if (!$user) {
+			isPageLoading = false;
+			return;
+		}
 		isPageLoading = true;
 		try {
-			const [planData, progressData] = await Promise.all([getWorkoutPlan(), getDailyProgress(uid)]);
-
+			const [planData, progressData] = await Promise.all([getWorkoutPlan(), getDailyProgress($user.uid)]);
 			totalEpUsed = Object.entries(progressData.progress).reduce((acc, [exerciseId, reps]) => {
 				const exercise = planData.find((ex) => ex.id === exerciseId);
 				return acc + reps * (exercise?.epCostPerUnit || 0);
 			}, 0);
-
+			remainingEp = 100 - totalEpUsed;
 			workoutLog = planData.map((ex) => ({
 				exercise: ex,
 				repsCompleted: progressData.progress[ex.id] || 0,
@@ -61,7 +55,7 @@
 		} finally {
 			isPageLoading = false;
 		}
-	}
+	});
 
 	async function handleAddProgress(log: (typeof workoutLog)[0]) {
 		if (!$user) return;
@@ -70,23 +64,21 @@
 			toast.error('Masukkan jumlah progres yang valid.');
 			return;
 		}
-
 		const epCost = reps * log.exercise.epCostPerUnit;
-		if (epCost > $remainingEpStore) {
+		if (epCost > remainingEp) {
 			toast.error('EP tidak cukup!');
 			return;
 		}
-
 		isAddingProgress = true;
 		const success = await addWorkoutProgress($user.uid, log.exercise.id, reps);
 		if (success) {
 			const epSebelumDitambah = totalEpUsed;
 			log.repsCompleted += reps;
 			totalEpUsed += epCost;
+			remainingEp = 100 - totalEpUsed;
 			log.repsToAdd = '';
 			toast.success(`+${reps} ${log.exercise.unit} dicatat!`);
 			workoutLog = [...workoutLog];
-
 			if (totalEpUsed >= 80 && epSebelumDitambah < 80) {
 				finishAndSaveWorkout();
 			}
@@ -108,9 +100,13 @@
 		}));
 		const result = processWorkoutResult($userProfile, workoutData);
 		summary = result;
-		await saveWorkoutResult($user.uid, result);
-		isLoading = false; // Hentikan loading sebelum tampilkan modal
-		showRewardModal = true;
+		const saveSuccess = await saveWorkoutResult($user.uid, result);
+		if (saveSuccess) {
+			showRewardModal = true;
+		} else {
+			toast.error('Gagal menyimpan progres ke server.');
+		}
+		isLoading = false;
 	}
 
 	function handleRewardModalClose() {
@@ -126,10 +122,10 @@
 		if ($user) {
 			const updatedProfile = await getUserProfile($user.uid);
 			if (updatedProfile) {
-				$userProfile = updatedProfile;
+				userProfile.set(updatedProfile);
 			}
 		}
-		$dailyQuestCompleted = true;
+		dailyQuestCompleted.set(true);
 		goto('/');
 	}
 </script>
@@ -153,9 +149,7 @@
 					<Card.Content class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
 						<div class="space-y-2">
 							<p class="text-sm text-muted-foreground">
-								Progres Hari Ini: <span class="font-bold text-foreground"
-									>{log.repsCompleted}</span
-								> / {log.targetReps}
+								Progres Hari Ini: <span class="font-bold text-foreground">{log.repsCompleted}</span> / {log.targetReps}
 								<span class="capitalize">{log.exercise.unit}</span>
 							</p>
 							<Progress value={(log.repsCompleted / log.targetReps) * 100} class="mt-2" />
@@ -180,7 +174,7 @@
 				</Card.Root>
 			{/each}
 		</div>
-		{/if}
+	{/if}
 </div>
 
 <AlertDialog.Root bind:open={showRewardModal}>

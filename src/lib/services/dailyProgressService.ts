@@ -23,6 +23,7 @@ export async function getDailyProgress(uid: string): Promise<DailyProgress> {
 	const todayStr = getTodayDateString();
 	const progressRef = doc(db, `daily_progress/${uid}/workouts/${todayStr}`);
 	const docSnap = await getDoc(progressRef);
+
 	if (docSnap.exists()) {
 		return docSnap.data() as DailyProgress;
 	} else {
@@ -60,7 +61,6 @@ export async function addWorkoutProgress(uid: string, exerciseId: string, additi
 	}
 }
 
-// FIX: Menambahkan kembali fungsi yang hilang
 export async function updateDailyTaskStatus(uid: string, task: RestDayTask, isComplete: boolean): Promise<boolean> {
 	const todayStr = getTodayDateString();
 	const progressRef = doc(db, `daily_progress/${uid}/workouts/${todayStr}`);
