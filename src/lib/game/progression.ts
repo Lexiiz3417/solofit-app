@@ -32,7 +32,7 @@ export interface WorkoutResult {
 
 // --- Game Constants ---
 const DAILY_EP_TARGET = 80;
-const BASE_EXP_REWARD = 100;
+const BASE_EXP_REWARD = 25;
 const BASE_GOLD_REWARD = 50;
 const KEY_REWARD = 1;
 const STAT_POINT_PER_LEVEL = 1;
