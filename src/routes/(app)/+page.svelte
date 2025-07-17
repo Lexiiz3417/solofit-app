@@ -84,74 +84,33 @@
 	</div>
 
 	{#if $dailyQuestCompleted}
-		<Card.Root class="text-center p-8">
-			<Card.Content class="flex flex-col items-center gap-4">
+	<Card.Root>
+		<Card.Header class="text-center">
+			<div class="flex justify-center mb-4">
 				<CheckCircle2 class="w-16 h-16 text-green-500" />
-				<h2 class="text-xl font-semibold">Misi Harian Telah Selesai!</h2>
-				<p class="text-muted-foreground">
-					Kerja bagus, Hunter. Kamu telah menyelesaikan tugasmu hari ini. <br />
-					Kembali lagi besok untuk tantangan berikutnya!
-				</p>
-			</Card.Content>
-		</Card.Root>
-	{:else if isPageLoading}
-		<p>Memuat misi harian...</p>
-	{:else if $currentDayType === 'workout'}
-		<Card.Root>
-			<Card.Header>
-				<Card.Title>Workout Day Quest</Card.Title>
-				<Card.Description>
-					Gunakan minimal <strong>80 EP</strong> untuk menyelesaikan quest hari ini dan dapatkan reward.
-				</Card.Description>
-			</Card.Header>
-			<Card.Content class="space-y-4">
-				<div>
-					<div class="flex justify-between mb-1">
-						<span class="text-sm font-medium text-primary">Sisa Energy Points (EP)</span>
-						<span class="text-sm font-medium">{Math.max(0, remainingEp)} / 100</span>
-					</div>
-					<Progress value={totalEpUsed} />
+			</div>
+			<Card.Title class="text-xl font-semibold">Misi Harian Telah Selesai!</Card.Title>
+			<Card.Description>
+				Kerja bagus, Hunter. Kamu telah menyelesaikan tugasmu hari ini.
+			</Card.Description>
+		</Card.Header>
+		{#if remainingEp > 0}
+			<Card.Content class="pt-4">
+				<div class="border-t pt-4 text-center space-y-2">
+					<p class="text-sm font-bold text-primary">BONUS ROUND!</p>
+					<p class="text-xs text-muted-foreground">
+						Kamu masih punya <span class="font-bold">{remainingEp.toFixed(0)} EP</span>. Gunakan untuk mendapatkan Quest Points!
+					</p>
 				</div>
 			</Card.Content>
 			<Card.Footer>
 				<a href="/workout" class="w-full">
-					<Button class="w-full">Mulai Latihan</Button>
+					<Button class="w-full" variant="outline">Latihan Tambahan</Button>
 				</a>
 			</Card.Footer>
-		</Card.Root>
-	{:else if $currentDayType === 'rest'}
-		<Card.Root>
-			<Card.Header>
-				<Card.Title>Active Rest Day Quest</Card.Title>
-				<Card.Description>
-					Jaga *streak*-mu dengan menyelesaikan 2 tugas ringan di bawah ini.
-				</Card.Description>
-			</Card.Header>
-			<Card.Content class="space-y-4">
-				<div class="flex items-center space-x-3">
-					<Checkbox id="stretch" checked={stretchingDone} disabled />
-					<a href="/stretching" class="flex-1">
-						<Label for="stretch" class="text-base hover:underline cursor-pointer">Selesaikan 1 Sesi Peregangan</Label>
-					</a>
-				</div>
-				<div class="flex items-center space-x-3">
-					<Checkbox id="read" checked={readingDone} disabled />
-					<a href="/library" class="flex-1">
-						<Label for="read" class="text-base hover:underline cursor-pointer">Selesaikan 1 Reading Quest</Label>
-					</a>
-				</div>
-			</Card.Content>
-			<Card.Footer>
-				<Button 
-					onclick={handleFinishRestDay} 
-					class="w-full" 
-					disabled={!stretchingDone || !readingDone || isSubmittingRestQuest}
-				>
-					{#if isSubmittingRestQuest} Processing... {:else} Selesaikan Quest Istirahat {/if}
-				</Button>
-			</Card.Footer>
-		</Card.Root>
-	{/if}
+		{/if}
+	</Card.Root>
+{:else if isPageLoading}{/if}
 </div>
 
 <div class="absolute bottom-20 right-4 flex gap-2 md:bottom-4">
